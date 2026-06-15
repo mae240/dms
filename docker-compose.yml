@@ -1,0 +1,106 @@
+name: dms
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-dms}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dms_dev_password_change_me}
+      POSTGRES_DB: ${POSTGRES_DB:-dms}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dms} -d ${POSTGRES_DB:-dms}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # Nicht oeffentlich binden; nur fuer lokales Debugging einkommentieren:
+    # ports: ["5432:5432"]
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-dms}:${POSTGRES_PASSWORD:-dms_dev_password_change_me}@postgres:5432/${POSTGRES_DB:-dms}
+    volumes:
+      - ./packages:/app/packages          # Hot-Reload (dev)
+      - ./backend:/app/backend
+      - ./alembic:/app/alembic
+      - ./alembic.ini:/app/alembic.ini
+      - storage_data:/data/storage
+      - export_data:/data/exports
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://localhost:8000/api/health').status==200 else sys.exit(1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    command: >
+      bash -c "if [ \"$${RUN_MIGRATIONS:-true}\" = \"true\" ]; then alembic upgrade head; fi &&
+               uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app/backend --reload-dir /app/packages"
+
+  worker:
+    build:
+      context: .
+      dockerfile: worker/Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-dms}:${POSTGRES_PASSWORD:-dms_dev_password_change_me}@postgres:5432/${POSTGRES_DB:-dms}
+    volumes:
+      - ./packages:/app/packages
+      - ./worker:/app/worker
+      - storage_data:/data/storage        # geteiltes Volume mit backend (KRITISCH)
+      - export_data:/data/exports
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      backend: {condition: service_started}
+    # Worker + embedded beat (MVP, Single-Replica)
+    command: >
+      celery -A worker.celery_tasks.celery_app worker
+      --beat --loglevel=INFO
+      --concurrency=2
+      -Q processing,maintenance
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    restart: unless-stopped
+    environment:
+      VITE_API_BASE_URL: /api
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    ports:
+      - "5173:5173"
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+
+volumes:
+  postgres_data:
+  redis_data:
+  storage_data:
+  export_data:

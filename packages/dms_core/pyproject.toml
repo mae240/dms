@@ -1,0 +1,23 @@
+[project]
+name = "dms-core"
+version = "0.1.0"
+description = "Gemeinsamer Kern (Models, DB, Settings, Storage, Security, Audit) fuer DMS Backend + Worker"
+requires-python = ">=3.12"
+dependencies = [
+    "sqlmodel>=0.0.22",
+    "sqlalchemy>=2.0.36",
+    "psycopg[binary]>=3.2",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "argon2-cffi>=23.1",
+    "pyjwt>=2.10",
+    "python-magic>=0.4.27",
+    "celery[redis]>=5.4",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["dms_core"]

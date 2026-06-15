@@ -1,0 +1,36 @@
+[project]
+name = "dms"
+version = "0.1.0"
+description = "DSGVO-orientiertes Dokumentenmanagementsystem (MVP)"
+requires-python = ">=3.12"
+
+[tool.uv.workspace]
+members = ["packages/*", "backend", "worker"]
+
+[tool.uv.sources]
+dms-core = { workspace = true }
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["packages/dms_core", "backend", "worker"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "C4", "SIM", "TID"]
+ignore = ["B008"]  # FastAPI Depends() in default args ist gewollt
+
+[tool.ruff.lint.isort]
+known-first-party = ["dms_core", "app", "worker"]
+
+[tool.mypy]
+python_version = "3.12"
+plugins = ["pydantic.mypy"]
+ignore_missing_imports = true
+warn_unused_ignores = true
+no_implicit_optional = true
+files = ["packages/dms_core/dms_core", "backend/app"]
+
+[tool.pytest.ini_options]
+testpaths = ["backend/tests"]
+addopts = "-q"
+filterwarnings = ["ignore::DeprecationWarning"]

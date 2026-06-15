@@ -1,0 +1,49 @@
+# Produktions-Override.
+# Verwendung:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+#     up -d --build postgres redis migrate backend worker web
+#
+# Unterschiede zum Dev-Setup:
+# - kein Hot-Reload, kein Source-Bind-Mount-Bedarf (Images sind self-contained)
+# - Migrationen laufen als separater One-Shot-Service (migrate), nicht beim Backend-Start
+# - Frontend wird gebaut und von nginx single-origin ausgeliefert (Port 80), /api -> backend
+# Hinweis: den Dev-'frontend'-Service in Produktion NICHT starten.
+
+name: dms
+
+services:
+  backend:
+    environment:
+      ENVIRONMENT: production
+      RUN_MIGRATIONS: "false"
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    # In Produktion keinen Host-Port veroeffentlichen; Zugriff nur ueber nginx.
+    ports: !reset []
+
+  worker:
+    environment:
+      ENVIRONMENT: production
+
+  migrate:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    env_file: .env
+    environment:
+      ENVIRONMENT: production
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-dms}:${POSTGRES_PASSWORD:-dms_dev_password_change_me}@postgres:5432/${POSTGRES_DB:-dms}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"

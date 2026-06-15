@@ -1,0 +1,1 @@
+"""Celery-Worker des DMS."""
