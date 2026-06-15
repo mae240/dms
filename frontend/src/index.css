@@ -168,7 +168,7 @@ tr:hover td { background: rgba(255, 255, 255, 0.03); }
 .badge.warning { color: var(--warning); background: var(--warning-soft); border-color: rgba(255, 189, 74, 0.34); }
 .badge.danger { color: var(--danger); background: var(--danger-soft); border-color: rgba(255, 97, 116, 0.34); }
 .badge.primary { color: var(--primary-2); background: var(--primary-soft); border-color: rgba(109, 124, 255, 0.32); }
-.badge.neutral, .badge.muted { color: var(--muted); }
+.badge.neutral, .badge.muted { color: var(--muted); background: transparent; }
 /* Status-Aliase (Bestand) */
 .badge.ready, .badge.active { color: var(--success); background: var(--success-soft); border-color: rgba(53, 208, 127, 0.32); }
 .badge.processing, .badge.uploaded { color: var(--warning); background: var(--warning-soft); border-color: rgba(255, 189, 74, 0.34); }
