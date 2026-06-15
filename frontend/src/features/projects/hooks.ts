@@ -13,6 +13,8 @@ import type {
   ProjectRole,
   ProjectStatus,
   RecentDocument,
+  RetentionRuleIn,
+  RetentionRuleOut,
 } from "../../types/api";
 
 export const PAGE_SIZE = 25;
@@ -164,6 +166,38 @@ export function useUploadDocument(projectId: string) {
     onSuccess: () => {
       toast.success("Dokument hochgeladen.");
       qc.invalidateQueries({ queryKey: ["documents", projectId] });
+    },
+  });
+}
+
+export function useRetentionRules(projectId: string) {
+  return useQuery({
+    queryKey: ["retention-rules", projectId],
+    queryFn: () => api.get<RetentionRuleOut[]>(`/projects/${projectId}/retention-rules`),
+    enabled: !!projectId,
+  });
+}
+
+export function useUpsertRetentionRule(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: RetentionRuleIn) =>
+      api.put<RetentionRuleOut>(`/projects/${projectId}/retention-rules`, body),
+    onSuccess: () => {
+      toast.success("Aufbewahrungsregel gespeichert.");
+      qc.invalidateQueries({ queryKey: ["retention-rules", projectId] });
+    },
+  });
+}
+
+export function useDeleteRetentionRule(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (category: string | null) =>
+      api.del<void>(`/projects/${projectId}/retention-rules`, { category }),
+    onSuccess: () => {
+      toast.success("Aufbewahrungsregel entfernt.");
+      qc.invalidateQueries({ queryKey: ["retention-rules", projectId] });
     },
   });
 }
