@@ -106,40 +106,51 @@ def auto_soft_delete_expired(session: Session, *, now: datetime | None = None) -
     rp = aliased(RetentionRule)  # Projekt-Default (category IS NULL)
     effective = case((rc.id.is_not(None), rc.max_days), else_=rp.max_days)
 
-    candidates = session.exec(
-        select(Document)
-        .join(Project, Project.id == Document.project_id)
-        .outerjoin(
-            rc, and_(rc.project_id == Document.project_id, rc.category == Document.category)
-        )
-        .outerjoin(rp, and_(rp.project_id == Document.project_id, rp.category.is_(None)))
-        .where(
-            Document.status == DocumentStatus.active,
-            Document.legal_hold.is_(False),
-            effective.is_not(None),
-            Document.created_at < now - func.make_interval(0, 0, 0, effective),
-            or_(Document.retention_until.is_(None), Document.retention_until <= today),
-        )
-        .limit(PURGE_BATCH)
-    ).all()
-
     purge_after = now + timedelta(days=settings.purge_grace_days)
-    for doc in candidates:
-        doc.status = DocumentStatus.deleted
-        doc.deleted_at = now
-        doc.purge_after = purge_after
-        session.add(doc)
-        write_audit_log(
-            session,
-            action=AuditAction.document_auto_expired,
-            entity_type="document",
-            actor_user_id=None,
-            entity_id=doc.id,
-            project_id=doc.project_id,
-            metadata={"reason": "retention_max"},
-        )
-    session.flush()
-    return len(candidates)
+    # Gebatcht (LIMIT-Schleife), damit ein Rueckstau > PURGE_BATCH vollstaendig
+    # abgearbeitet wird (gleiches Muster wie purge_deleted_documents). Soft-gedeletete
+    # Dokumente verlassen status=active und werden nicht erneut selektiert -> Schleife
+    # terminiert.
+    total = 0
+    while True:
+        candidates = session.exec(
+            select(Document)
+            .join(Project, Project.id == Document.project_id)
+            .outerjoin(
+                rc, and_(rc.project_id == Document.project_id, rc.category == Document.category)
+            )
+            .outerjoin(rp, and_(rp.project_id == Document.project_id, rp.category.is_(None)))
+            .where(
+                Document.status == DocumentStatus.active,
+                Document.legal_hold.is_(False),
+                effective.is_not(None),
+                # PG make_interval(years, months, weeks, days)
+                Document.created_at < now - func.make_interval(0, 0, 0, effective),
+                or_(Document.retention_until.is_(None), Document.retention_until <= today),
+            )
+            .limit(PURGE_BATCH)
+        ).all()
+        if not candidates:
+            break
+        for doc in candidates:
+            doc.status = DocumentStatus.deleted
+            doc.deleted_at = now
+            doc.purge_after = purge_after
+            session.add(doc)
+            write_audit_log(
+                session,
+                action=AuditAction.document_auto_expired,
+                entity_type="document",
+                actor_user_id=None,
+                entity_id=doc.id,
+                project_id=doc.project_id,
+                metadata={"reason": "retention_max"},
+            )
+        session.flush()
+        total += len(candidates)
+        if len(candidates) < PURGE_BATCH:
+            break
+    return total
 
 
 def build_export_payload(session: Session, subject_id: uuid.UUID) -> dict:
