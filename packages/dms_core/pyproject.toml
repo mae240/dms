@@ -13,6 +13,7 @@ dependencies = [
     "pyjwt>=2.10",
     "python-magic>=0.4.27",
     "celery[redis]>=5.4",
+    "cryptography>=43,<46",
 ]
 
 [build-system]
