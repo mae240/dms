@@ -1,0 +1,1176 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DMS – SaaS Dashboard</title>
+  <style>
+    :root {
+      --bg: #080d19;
+      --surface: #101827;
+      --surface-2: #151f33;
+      --surface-3: #1b2942;
+      --border: rgba(255,255,255,.09);
+      --border-strong: rgba(255,255,255,.16);
+      --text: #eef4ff;
+      --muted: #99a8c0;
+      --muted-2: #687891;
+      --primary: #6d7cff;
+      --primary-soft: rgba(109,124,255,.15);
+      --success: #35d07f;
+      --success-soft: rgba(53,208,127,.13);
+      --warning: #ffbd4a;
+      --warning-soft: rgba(255,189,74,.14);
+      --danger: #ff6174;
+      --danger-soft: rgba(255,97,116,.13);
+      --shadow: 0 26px 90px rgba(0,0,0,.42);
+      --radius-xl: 26px;
+      --radius-lg: 20px;
+      --radius-md: 14px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(109,124,255,.24), transparent 34rem),
+        radial-gradient(circle at 85% 15%, rgba(53,208,127,.12), transparent 30rem),
+        var(--bg);
+      color: var(--text);
+    }
+
+    button, input, select { font: inherit; }
+
+    .app {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 282px minmax(0, 1fr);
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      padding: 24px 18px;
+      background: rgba(7,12,24,.78);
+      border-right: 1px solid var(--border);
+      backdrop-filter: blur(18px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 10px 26px;
+    }
+
+    .logo {
+      width: 44px;
+      height: 44px;
+      display: grid;
+      place-items: center;
+      border-radius: 16px;
+      background: linear-gradient(135deg, #6d7cff, #9f6dff);
+      box-shadow: 0 18px 48px rgba(109,124,255,.32);
+      font-weight: 900;
+    }
+
+    .brand strong {
+      display: block;
+      font-size: 20px;
+      letter-spacing: -.03em;
+    }
+
+    .brand span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 2px;
+    }
+
+    .nav-label {
+      margin: 20px 12px 8px;
+      color: var(--muted-2);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .14em;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      min-height: 43px;
+      padding: 0 12px;
+      border-radius: 14px;
+      color: var(--muted);
+      text-decoration: none;
+      margin: 4px 0;
+      transition: .16s ease;
+    }
+
+    .nav-item:hover,
+    .nav-item.active {
+      color: var(--text);
+      background: rgba(255,255,255,.07);
+    }
+
+    .nav-item.active {
+      box-shadow: inset 0 0 0 1px rgba(109,124,255,.25);
+      background: rgba(109,124,255,.14);
+    }
+
+    .nav-icon {
+      width: 24px;
+      text-align: center;
+    }
+
+    .workspace-card {
+      position: absolute;
+      left: 18px;
+      right: 18px;
+      bottom: 22px;
+      padding: 16px;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.035));
+    }
+
+    .workspace-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .avatar {
+      width: 38px;
+      height: 38px;
+      border-radius: 14px;
+      display: grid;
+      place-items: center;
+      background: var(--primary-soft);
+      color: #bfc8ff;
+      font-weight: 900;
+    }
+
+    .workspace-title {
+      font-weight: 800;
+      margin-bottom: 2px;
+    }
+
+    .workspace-sub {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .progress {
+      height: 9px;
+      border-radius: 99px;
+      background: rgba(255,255,255,.08);
+      overflow: hidden;
+    }
+
+    .progress span {
+      display: block;
+      width: 68%;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--primary), var(--success));
+    }
+
+    main {
+      padding: 24px;
+      max-width: 1600px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 18px;
+      align-items: center;
+      margin-bottom: 22px;
+    }
+
+    .search-shell {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 10px;
+      align-items: center;
+      padding: 10px;
+      border-radius: 22px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.045);
+      box-shadow: var(--shadow);
+    }
+
+    .search {
+      border: 0;
+      outline: none;
+      width: 100%;
+      color: var(--text);
+      background: transparent;
+      padding: 0 10px;
+    }
+
+    .select,
+    .input {
+      width: 100%;
+      color: var(--text);
+      background: rgba(5,9,18,.72);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 11px 12px;
+      outline: none;
+    }
+
+    .btn {
+      border: 1px solid var(--border-strong);
+      border-radius: 14px;
+      color: var(--text);
+      background: rgba(255,255,255,.06);
+      padding: 10px 14px;
+      min-height: 42px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      cursor: pointer;
+      transition: .16s ease;
+      white-space: nowrap;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+      background: rgba(255,255,255,.1);
+    }
+
+    .btn.primary {
+      border-color: transparent;
+      background: linear-gradient(135deg, var(--primary), #8b5cff);
+      box-shadow: 0 18px 44px rgba(109,124,255,.28);
+    }
+
+    .btn.ghost {
+      border-color: transparent;
+      background: transparent;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+
+    .page-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      align-items: end;
+      margin-bottom: 20px;
+    }
+
+    .eyebrow {
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 8px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(30px, 4vw, 48px);
+      line-height: 1.02;
+      letter-spacing: -.055em;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 18px;
+      letter-spacing: -.02em;
+    }
+
+    .page-note {
+      color: var(--muted);
+      margin-top: 10px;
+      max-width: 680px;
+      line-height: 1.55;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      padding: 5px 9px;
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .badge.success {
+      color: var(--success);
+      background: var(--success-soft);
+      border-color: rgba(53,208,127,.32);
+    }
+
+    .badge.warning {
+      color: var(--warning);
+      background: var(--warning-soft);
+      border-color: rgba(255,189,74,.34);
+    }
+
+    .badge.danger {
+      color: var(--danger);
+      background: var(--danger-soft);
+      border-color: rgba(255,97,116,.34);
+    }
+
+    .badge.primary {
+      color: #bfc8ff;
+      background: var(--primary-soft);
+      border-color: rgba(109,124,255,.32);
+    }
+
+    .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 99px;
+      background: currentColor;
+    }
+
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .kpi {
+      position: relative;
+      overflow: hidden;
+      padding: 20px;
+      border-radius: var(--radius-xl);
+      border: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(255,255,255,.065), rgba(255,255,255,.032));
+      box-shadow: var(--shadow);
+    }
+
+    .kpi::after {
+      content: "";
+      position: absolute;
+      right: -36px;
+      top: -36px;
+      width: 128px;
+      height: 128px;
+      border-radius: 999px;
+      background: rgba(109,124,255,.14);
+    }
+
+    .kpi-top {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .kpi-icon {
+      width: 44px;
+      height: 44px;
+      display: grid;
+      place-items: center;
+      border-radius: 16px;
+      background: var(--primary-soft);
+      color: #bfc8ff;
+      font-size: 20px;
+    }
+
+    .kpi-value {
+      position: relative;
+      z-index: 1;
+      font-size: 34px;
+      line-height: 1;
+      font-weight: 950;
+      letter-spacing: -.05em;
+    }
+
+    .kpi-label {
+      position: relative;
+      z-index: 1;
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 6px;
+    }
+
+    .content-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 410px;
+      gap: 18px;
+      align-items: start;
+    }
+
+    .card {
+      border: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(255,255,255,.058), rgba(255,255,255,.03));
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .card-inner {
+      padding: 22px;
+    }
+
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 5px;
+      line-height: 1.45;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 8px;
+      padding: 10px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(255,255,255,.035);
+      overflow-x: auto;
+    }
+
+    .tab {
+      border: 0;
+      border-radius: 999px;
+      padding: 9px 13px;
+      color: var(--muted);
+      background: transparent;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .tab.active {
+      color: var(--text);
+      background: rgba(109,124,255,.16);
+      box-shadow: inset 0 0 0 1px rgba(109,124,255,.28);
+    }
+
+    .project-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .project-card {
+      padding: 17px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.045);
+      transition: .16s ease;
+    }
+
+    .project-card:hover {
+      transform: translateY(-1px);
+      background: rgba(255,255,255,.07);
+      border-color: rgba(109,124,255,.34);
+    }
+
+    .project-card-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: flex-start;
+      margin-bottom: 14px;
+    }
+
+    .project-main {
+      display: flex;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .project-icon {
+      flex: 0 0 auto;
+      width: 48px;
+      height: 48px;
+      display: grid;
+      place-items: center;
+      border-radius: 17px;
+      background: var(--primary-soft);
+      color: #bfc8ff;
+      border: 1px solid rgba(109,124,255,.28);
+      font-size: 22px;
+    }
+
+    .project-title {
+      font-weight: 900;
+      margin-bottom: 5px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .project-meta {
+      color: var(--muted);
+      font-size: 12px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .mini-kpis {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .mini-kpi {
+      border: 1px solid rgba(255,255,255,.07);
+      border-radius: 14px;
+      padding: 10px;
+      background: rgba(0,0,0,.16);
+    }
+
+    .mini-kpi strong {
+      display: block;
+      font-size: 16px;
+      margin-bottom: 2px;
+    }
+
+    .mini-kpi span {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .doc-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .doc-row {
+      display: grid;
+      grid-template-columns: 48px minmax(0, 1fr) auto;
+      gap: 13px;
+      align-items: center;
+      padding: 14px;
+      border-radius: 18px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.045);
+    }
+
+    .doc-type {
+      width: 48px;
+      height: 48px;
+      display: grid;
+      place-items: center;
+      border-radius: 16px;
+      background: var(--primary-soft);
+      color: #bfc8ff;
+      border: 1px solid rgba(109,124,255,.28);
+      font-size: 12px;
+      font-weight: 950;
+      letter-spacing: .04em;
+    }
+
+    .doc-title {
+      font-weight: 850;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 5px;
+    }
+
+    .doc-meta {
+      color: var(--muted);
+      font-size: 12px;
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .icon-btn {
+      width: 38px;
+      height: 38px;
+      border: 1px solid var(--border);
+      border-radius: 13px;
+      color: var(--text);
+      background: rgba(255,255,255,.055);
+      cursor: pointer;
+    }
+
+    .side-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .upload-zone {
+      min-height: 164px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      border: 1px dashed rgba(109,124,255,.5);
+      border-radius: 22px;
+      background: rgba(109,124,255,.08);
+      padding: 22px;
+    }
+
+    .upload-icon {
+      width: 56px;
+      height: 56px;
+      display: grid;
+      place-items: center;
+      margin: 0 auto 12px;
+      border-radius: 19px;
+      background: var(--primary-soft);
+      color: #bfc8ff;
+      font-size: 25px;
+    }
+
+    .activity-list,
+    .risk-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .activity,
+    .risk {
+      display: grid;
+      grid-template-columns: 10px minmax(0, 1fr);
+      gap: 12px;
+      padding: 12px;
+      border-radius: 16px;
+      background: rgba(255,255,255,.045);
+      border: 1px solid rgba(255,255,255,.07);
+    }
+
+    .activity-dot,
+    .risk-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 99px;
+      margin-top: 5px;
+      background: var(--primary);
+    }
+
+    .risk-dot.warning { background: var(--warning); }
+    .risk-dot.danger { background: var(--danger); }
+    .risk-dot.success { background: var(--success); }
+
+    .activity-title,
+    .risk-title {
+      font-weight: 800;
+      margin-bottom: 4px;
+    }
+
+    .activity-meta,
+    .risk-meta {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .table th,
+    .table td {
+      text-align: left;
+      padding: 13px 10px;
+      border-bottom: 1px solid rgba(255,255,255,.07);
+      font-size: 13px;
+    }
+
+    .table th {
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      font-weight: 800;
+    }
+
+    .table tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .mobile-only { display: none; }
+
+    @media (max-width: 1280px) {
+      .app { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      main { padding: 18px; }
+      .content-grid { grid-template-columns: 1fr; }
+      .mobile-only { display: inline-flex; }
+    }
+
+    @media (max-width: 900px) {
+      .topbar,
+      .page-head {
+        grid-template-columns: 1fr;
+        display: grid;
+        align-items: start;
+      }
+
+      .toolbar,
+      .actions {
+        justify-content: flex-start;
+      }
+
+      .search-shell {
+        grid-template-columns: 1fr;
+      }
+
+      .kpi-grid,
+      .project-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .doc-row {
+        grid-template-columns: 48px minmax(0, 1fr);
+      }
+
+      .doc-row .icon-btn {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="logo">D</div>
+        <div>
+          <strong>DMS</strong>
+          <span>Enterprise Workspace</span>
+        </div>
+      </div>
+
+      <div class="nav-label">Workspace</div>
+      <a class="nav-item active" href="#"><span class="nav-icon">▣</span> Dashboard</a>
+      <a class="nav-item" href="#"><span class="nav-icon">▦</span> Projekte</a>
+      <a class="nav-item" href="#"><span class="nav-icon">◰</span> Dokumente</a>
+      <a class="nav-item" href="#"><span class="nav-icon">⌕</span> Suche</a>
+      <a class="nav-item" href="#"><span class="nav-icon">★</span> Favoriten</a>
+
+      <div class="nav-label">Governance</div>
+      <a class="nav-item" href="#"><span class="nav-icon">◷</span> Aufbewahrung</a>
+      <a class="nav-item" href="#"><span class="nav-icon">⚑</span> Legal Holds</a>
+      <a class="nav-item" href="#"><span class="nav-icon">◉</span> Audit-Log</a>
+      <a class="nav-item" href="#"><span class="nav-icon">☷</span> Compliance</a>
+
+      <div class="nav-label">Admin</div>
+      <a class="nav-item" href="#"><span class="nav-icon">👥</span> Benutzer</a>
+      <a class="nav-item" href="#"><span class="nav-icon">⚙</span> Einstellungen</a>
+
+      <div class="workspace-card">
+        <div class="workspace-row">
+          <div style="display:flex;gap:10px;align-items:center;">
+            <div class="avatar">MM</div>
+            <div>
+              <div class="workspace-title">Intern</div>
+              <div class="workspace-sub">Privater Bereich</div>
+            </div>
+          </div>
+          <span class="badge success">aktiv</span>
+        </div>
+        <div class="workspace-row" style="margin-bottom:8px;">
+          <span class="workspace-sub">Speicher</span>
+          <span class="workspace-sub">6.8 / 10 GB</span>
+        </div>
+        <div class="progress"><span></span></div>
+      </div>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <div class="search-shell">
+          <input class="search" value="" placeholder="Dokumente, Projekte, Versionen oder Audit-Einträge suchen …" />
+          <select class="select" aria-label="Filter">
+            <option>Alle Bereiche</option>
+            <option>Projekte</option>
+            <option>Dokumente</option>
+            <option>Versionen</option>
+            <option>Audit</option>
+          </select>
+          <button class="btn primary">Suchen</button>
+        </div>
+
+        <div class="toolbar">
+          <button class="btn mobile-only">☰ Menü</button>
+          <button class="btn">🔔</button>
+          <button class="btn">⚙</button>
+          <button class="btn primary">＋ Neues Projekt</button>
+        </div>
+      </header>
+
+      <section class="page-head">
+        <div>
+          <div class="eyebrow">Dashboard / Übersicht</div>
+          <h1>Dokumente, Versionen und Compliance zentral steuern</h1>
+          <div class="page-note">Schneller Überblick über aktive Projekte, neue Uploads, offene Compliance-Fälle und die wichtigsten Dokumentbewegungen im Workspace.</div>
+        </div>
+        <div class="actions">
+          <button class="btn">↧ Report exportieren</button>
+          <button class="btn primary">⇧ Datei hochladen</button>
+        </div>
+      </section>
+
+      <section class="kpi-grid">
+        <article class="kpi">
+          <div class="kpi-top">
+            <div class="kpi-icon">▦</div>
+            <span class="badge primary">+2 diese Woche</span>
+          </div>
+          <div class="kpi-value">12</div>
+          <div class="kpi-label">Aktive Projekte</div>
+        </article>
+
+        <article class="kpi">
+          <div class="kpi-top">
+            <div class="kpi-icon">◰</div>
+            <span class="badge success">ready</span>
+          </div>
+          <div class="kpi-value">148</div>
+          <div class="kpi-label">Dokumente gesamt</div>
+        </article>
+
+        <article class="kpi">
+          <div class="kpi-top">
+            <div class="kpi-icon">⟳</div>
+            <span class="badge primary">Versioniert</span>
+          </div>
+          <div class="kpi-value">392</div>
+          <div class="kpi-label">Gespeicherte Versionen</div>
+        </article>
+
+        <article class="kpi">
+          <div class="kpi-top">
+            <div class="kpi-icon">⚑</div>
+            <span class="badge warning">prüfen</span>
+          </div>
+          <div class="kpi-value">5</div>
+          <div class="kpi-label">Compliance-Hinweise</div>
+        </article>
+      </section>
+
+      <section class="content-grid">
+        <div style="display:flex;flex-direction:column;gap:18px;">
+          <article class="card">
+            <div class="tabs">
+              <button class="tab active">Projekte</button>
+              <button class="tab">Zuletzt geöffnet</button>
+              <button class="tab">Meine Uploads</button>
+              <button class="tab">Archiv</button>
+            </div>
+            <div class="card-inner">
+              <div class="section-head">
+                <div>
+                  <h2>Projektübersicht</h2>
+                  <div class="hint">Jedes Projekt zeigt Dokumentanzahl, Versionen und Compliance-Status.</div>
+                </div>
+                <button class="btn">Alle anzeigen</button>
+              </div>
+
+              <div class="project-grid">
+                <div class="project-card">
+                  <div class="project-card-head">
+                    <div class="project-main">
+                      <div class="project-icon">📚</div>
+                      <div style="min-width:0;">
+                        <div class="project-title">SQ_VO_Slides</div>
+                        <div class="project-meta"><span>Intern</span><span>Aktualisiert vor 8 Min.</span></div>
+                      </div>
+                    </div>
+                    <span class="badge success"><span class="dot"></span> aktiv</span>
+                  </div>
+                  <div class="mini-kpis">
+                    <div class="mini-kpi"><strong>3</strong><span>Dokumente</span></div>
+                    <div class="mini-kpi"><strong>9</strong><span>Versionen</span></div>
+                    <div class="mini-kpi"><strong>0</strong><span>Risiken</span></div>
+                  </div>
+                </div>
+
+                <div class="project-card">
+                  <div class="project-card-head">
+                    <div class="project-main">
+                      <div class="project-icon">🧾</div>
+                      <div style="min-width:0;">
+                        <div class="project-title">Verträge_2026</div>
+                        <div class="project-meta"><span>Legal</span><span>Aktualisiert heute</span></div>
+                      </div>
+                    </div>
+                    <span class="badge warning"><span class="dot"></span> Review</span>
+                  </div>
+                  <div class="mini-kpis">
+                    <div class="mini-kpi"><strong>18</strong><span>Dokumente</span></div>
+                    <div class="mini-kpi"><strong>41</strong><span>Versionen</span></div>
+                    <div class="mini-kpi"><strong>2</strong><span>Risiken</span></div>
+                  </div>
+                </div>
+
+                <div class="project-card">
+                  <div class="project-card-head">
+                    <div class="project-main">
+                      <div class="project-icon">📊</div>
+                      <div style="min-width:0;">
+                        <div class="project-title">Reports_Q2</div>
+                        <div class="project-meta"><span>Finance</span><span>Gestern</span></div>
+                      </div>
+                    </div>
+                    <span class="badge success"><span class="dot"></span> aktiv</span>
+                  </div>
+                  <div class="mini-kpis">
+                    <div class="mini-kpi"><strong>24</strong><span>Dokumente</span></div>
+                    <div class="mini-kpi"><strong>66</strong><span>Versionen</span></div>
+                    <div class="mini-kpi"><strong>1</strong><span>Risiko</span></div>
+                  </div>
+                </div>
+
+                <div class="project-card">
+                  <div class="project-card-head">
+                    <div class="project-main">
+                      <div class="project-icon">🗃</div>
+                      <div style="min-width:0;">
+                        <div class="project-title">Archiv_Studium</div>
+                        <div class="project-meta"><span>Privat</span><span>Vor 3 Tagen</span></div>
+                      </div>
+                    </div>
+                    <span class="badge primary">archiviert</span>
+                  </div>
+                  <div class="mini-kpis">
+                    <div class="mini-kpi"><strong>49</strong><span>Dokumente</span></div>
+                    <div class="mini-kpi"><strong>132</strong><span>Versionen</span></div>
+                    <div class="mini-kpi"><strong>0</strong><span>Risiken</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article class="card">
+            <div class="card-inner">
+              <div class="section-head">
+                <div>
+                  <h2>Zuletzt bearbeitete Dokumente</h2>
+                  <div class="hint">Direkter Zugriff auf aktuelle Dateien inklusive Version und Status.</div>
+                </div>
+                <button class="btn">Filter</button>
+              </div>
+
+              <div class="doc-list">
+                <div class="doc-row">
+                  <div class="doc-type">PDF</div>
+                  <div>
+                    <div class="doc-title">SQ_02_Performance.pdf</div>
+                    <div class="doc-meta"><span>SQ_VO_Slides</span><span>v3</span><span>2.7 MB</span><span>vor 8 Min.</span></div>
+                  </div>
+                  <button class="icon-btn">↗</button>
+                </div>
+
+                <div class="doc-row">
+                  <div class="doc-type">DOC</div>
+                  <div>
+                    <div class="doc-title">Rahmenvertrag_Musterkunde.docx</div>
+                    <div class="doc-meta"><span>Verträge_2026</span><span>v7</span><span>884 KB</span><span>heute</span></div>
+                  </div>
+                  <button class="icon-btn">↗</button>
+                </div>
+
+                <div class="doc-row">
+                  <div class="doc-type">XLS</div>
+                  <div>
+                    <div class="doc-title">Umsatzreport_Q2.xlsx</div>
+                    <div class="doc-meta"><span>Reports_Q2</span><span>v4</span><span>1.9 MB</span><span>gestern</span></div>
+                  </div>
+                  <button class="icon-btn">↗</button>
+                </div>
+
+                <div class="doc-row">
+                  <div class="doc-type">PDF</div>
+                  <div>
+                    <div class="doc-title">Pruefungsnotizen_Geographie.pdf</div>
+                    <div class="doc-meta"><span>Archiv_Studium</span><span>v2</span><span>5.4 MB</span><span>vor 3 Tagen</span></div>
+                  </div>
+                  <button class="icon-btn">↗</button>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article class="card">
+            <div class="card-inner">
+              <div class="section-head">
+                <div>
+                  <h2>Aufbewahrung & Legal Holds</h2>
+                  <div class="hint">Tabellarische Übersicht für Superadmin- und Compliance-Aufgaben.</div>
+                </div>
+                <button class="btn">CSV Export</button>
+              </div>
+
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Dokument</th>
+                    <th>Projekt</th>
+                    <th>Bis</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>SQ_VO_Slides</td>
+                    <td>Intern</td>
+                    <td>15.06.2026</td>
+                    <td><span class="badge success">OK</span></td>
+                  </tr>
+                  <tr>
+                    <td>Rahmenvertrag_Musterkunde</td>
+                    <td>Legal</td>
+                    <td>02.07.2026</td>
+                    <td><span class="badge warning">Review</span></td>
+                  </tr>
+                  <tr>
+                    <td>Umsatzreport_Q2</td>
+                    <td>Finance</td>
+                    <td>30.06.2026</td>
+                    <td><span class="badge success">OK</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
+        </div>
+
+        <aside class="side-stack">
+          <article class="card">
+            <div class="card-inner">
+              <div class="section-head">
+                <div>
+                  <h2>Schnell-Upload</h2>
+                  <div class="hint">Dateien hochladen und direkt einem Projekt zuweisen.</div>
+                </div>
+              </div>
+              <div class="upload-zone">
+                <div>
+                  <div class="upload-icon">⇧</div>
+                  <strong>Dateien hier ablegen</strong>
+                  <div class="hint">PDF, DOCX, XLSX oder PPTX</div>
+                </div>
+              </div>
+              <div style="display:grid;gap:10px;margin-top:14px;">
+                <select class="select">
+                  <option>Projekt auswählen</option>
+                  <option>SQ_VO_Slides</option>
+                  <option>Verträge_2026</option>
+                  <option>Reports_Q2</option>
+                </select>
+                <button class="btn primary">Upload starten</button>
+              </div>
+            </div>
+          </article>
+
+          <article class="card">
+            <div class="card-inner">
+              <div class="section-head">
+                <div>
+                  <h2>Compliance Center</h2>
+                  <div class="hint">Wichtige Hinweise priorisiert.</div>
+                </div>
+              </div>
+              <div class="risk-list">
+                <div class="risk">
+                  <div class="risk-dot warning"></div>
+                  <div>
+                    <div class="risk-title">2 Dokumente laufen bald ab</div>
+                    <div class="risk-meta">Aufbewahrungsdatum innerhalb der nächsten 30 Tage.</div>
+                  </div>
+                </div>
+                <div class="risk">
+                  <div class="risk-dot danger"></div>
+                  <div>
+                    <div class="risk-title">1 Legal-Hold-Anfrage offen</div>
+                    <div class="risk-meta">Freigabe durch Superadmin erforderlich.</div>
+                  </div>
+                </div>
+                <div class="risk">
+                  <div class="risk-dot success"></div>
+                  <div>
+                    <div class="risk-title">143 Dokumente compliant</div>
+                    <div class="risk-meta">Keine Aktion erforderlich.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article class="card">
+            <div class="card-inner">
+              <div class="section-head">
+                <div>
+                  <h2>Aktivität</h2>
+                  <div class="hint">Live-Feed der letzten Aktionen.</div>
+                </div>
+              </div>
+
+              <div class="activity-list">
+                <div class="activity">
+                  <div class="activity-dot"></div>
+                  <div>
+                    <div class="activity-title">SQ_02_Performance.pdf hochgeladen</div>
+                    <div class="activity-meta">Matteo · SQ_VO_Slides · vor 8 Min.</div>
+                  </div>
+                </div>
+
+                <div class="activity">
+                  <div class="activity-dot"></div>
+                  <div>
+                    <div class="activity-title">Metadaten geändert</div>
+                    <div class="activity-meta">Admin · Verträge_2026 · heute</div>
+                  </div>
+                </div>
+
+                <div class="activity">
+                  <div class="activity-dot"></div>
+                  <div>
+                    <div class="activity-title">Version v4 neu verarbeitet</div>
+                    <div class="activity-meta">System · Reports_Q2 · gestern</div>
+                  </div>
+                </div>
+
+                <div class="activity">
+                  <div class="activity-dot"></div>
+                  <div>
+                    <div class="activity-title">Aufbewahrung gesetzt</div>
+                    <div class="activity-meta">Superadmin · SQ_VO_Slides · gestern</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </article>
+        </aside>
+      </section>
+    </main>
+  </div>
+</body>
+</html>
