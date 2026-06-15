@@ -92,6 +92,14 @@ def test_truncated_blob_fails() -> None:
         _read_all(enc.open_stream("doc/v1"))
 
 
+def test_trailing_data_after_final_frame_fails() -> None:
+    enc, inner = _backend()
+    enc.save("doc/v1", io.BytesIO(b"data"))
+    inner.blobs["doc/v1"] += b"\x00" * 16  # angehaengte Bytes nach finalem Frame
+    with pytest.raises(StorageError):
+        _read_all(enc.open_stream("doc/v1"))
+
+
 def test_bad_key_length_rejected() -> None:
     with pytest.raises(ValueError, match="32 Bytes"):
         EncryptedStorageBackend(_MemBackend(), keyring={1: b"kurz"}, active_key_id=1)
