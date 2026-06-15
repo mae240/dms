@@ -75,6 +75,7 @@ class AuditAction(StrEnum):
     document_restored = "document.restored"
     document_metadata_updated = "document.metadata_updated"
     document_purged = "document.purged"
+    document_auto_expired = "document.auto_expired"
     project_created = "project.created"
     project_updated = "project.updated"
     project_deleted = "project.deleted"
