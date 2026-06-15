@@ -21,6 +21,79 @@ PAST = datetime(2020, 1, 1, tzinfo=UTC)
 FUTURE_DATE = date(2999, 1, 1)
 
 
+def _project_with_document(db_session, *, age_days, category=None):  # noqa: ANN001, ANN202
+    """Legt Projekt + aktives Dokument an, dessen created_at age_days zurueckliegt."""
+    owner = make_user(db_session, f"ret-{datetime.now(UTC).timestamp()}@ex.com")
+    project = make_project(db_session, owner)
+    doc = make_document(db_session, project_id=project.id, created_by=owner.id)
+    doc.created_at = datetime.now(UTC) - timedelta(days=age_days)
+    doc.category = category
+    db_session.add(doc)
+    db_session.flush()
+    return project, doc
+
+
+def _rule(session, project, category, max_days):  # noqa: ANN001, ANN202
+    from dms_core.models.project import RetentionRule
+    r = RetentionRule(project_id=project.id, category=category, max_days=max_days)
+    session.add(r)
+    session.flush()
+    return r
+
+
+def test_auto_expire_off_when_no_rule(db_session):  # noqa: ANN001
+    from dms_core import maintenance
+    _, doc = _project_with_document(db_session, age_days=10_000)
+    assert maintenance.auto_soft_delete_expired(db_session) == 0
+    db_session.refresh(doc)
+    assert doc.status == "active"
+
+
+def test_auto_expire_project_default(db_session):  # noqa: ANN001
+    from dms_core import maintenance
+    project, doc = _project_with_document(db_session, age_days=400)
+    doc.retention_until = None
+    db_session.add(doc)
+    _rule(db_session, project, None, 365)  # Projekt-Default
+    assert maintenance.auto_soft_delete_expired(db_session) == 1
+    db_session.refresh(doc)
+    assert doc.status == "deleted" and doc.purge_after is not None
+
+
+def test_category_rule_overrides_default(db_session):  # noqa: ANN001
+    from dms_core import maintenance
+    project, doc = _project_with_document(db_session, age_days=400, category="Rechnung")
+    doc.retention_until = None
+    db_session.add(doc)
+    _rule(db_session, project, None, 365)          # Default: loeschen nach 365
+    _rule(db_session, project, "Rechnung", None)   # aber Rechnung = exempt
+    assert maintenance.auto_soft_delete_expired(db_session) == 0
+    db_session.refresh(doc)
+    assert doc.status == "active"
+
+
+def test_category_rule_shorter_than_default(db_session):  # noqa: ANN001
+    from dms_core import maintenance
+    project, doc = _project_with_document(db_session, age_days=40, category="Entwurf")
+    doc.retention_until = None
+    db_session.add(doc)
+    _rule(db_session, project, "Entwurf", 30)  # Entwurf schon nach 30 Tagen weg
+    assert maintenance.auto_soft_delete_expired(db_session) == 1
+
+
+def test_auto_expire_respects_legal_hold_and_min_retention(db_session):  # noqa: ANN001
+    from dms_core import maintenance
+    project, doc = _project_with_document(db_session, age_days=400)
+    _rule(db_session, project, None, 365)
+    doc.legal_hold = True
+    db_session.add(doc)
+    assert maintenance.auto_soft_delete_expired(db_session) == 0
+    doc.legal_hold = False
+    doc.retention_until = date.today() + timedelta(days=30)  # Mindest-Aufbewahrung laeuft noch
+    db_session.add(doc)
+    assert maintenance.auto_soft_delete_expired(db_session) == 0
+
+
 # ---------- Soft-Delete / Restore (API) ----------
 
 def test_delete_only_soft_deletes_and_restore(client: TestClient, db_session: Session) -> None:
