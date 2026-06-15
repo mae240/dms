@@ -207,6 +207,22 @@ export async function loginRequest(email: string, password: string): Promise<str
   return data.access_token;
 }
 
+export async function registerFirstAdminRequest(
+  email: string,
+  password: string,
+  full_name: string,
+): Promise<string> {
+  const res = await fetch(`${BASE}/auth/register-first-admin`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password, full_name }),
+  });
+  if (!res.ok) throw await parseError(res);
+  const data = (await res.json()) as { access_token: string };
+  accessToken = data.access_token;
+  return data.access_token;
+}
+
 export async function bootstrapSession(): Promise<boolean> {
   return tryRefresh();
 }

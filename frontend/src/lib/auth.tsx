@@ -13,6 +13,7 @@ import {
   bootstrapSession,
   loginRequest,
   logoutRequest,
+  registerFirstAdminRequest,
   setOnAuthLost,
 } from "./apiClient";
 import type { UserOut } from "../types/api";
@@ -22,6 +23,7 @@ interface AuthState {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  registerFirstAdmin: (email: string, password: string, fullName: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -63,9 +65,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
+  const registerFirstAdmin = useCallback(
+    async (email: string, password: string, fullName: string) => {
+      await registerFirstAdminRequest(email, password, fullName);
+      await loadMe();
+    },
+    [loadMe],
+  );
+
   const value = useMemo(
-    () => ({ user, loading, login, logout }),
-    [user, loading, login, logout],
+    () => ({ user, loading, login, logout, registerFirstAdmin }),
+    [user, loading, login, logout, registerFirstAdmin],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
