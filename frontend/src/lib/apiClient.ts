@@ -178,7 +178,18 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     }),
-  del: <T>(path: string) => request<T>(path, { method: "DELETE" }),
+  put: <T>(path: string, body: unknown) =>
+    request<T>(path, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+  del: <T>(path: string, body?: unknown) =>
+    request<T>(path, {
+      method: "DELETE",
+      headers: body !== undefined ? { "Content-Type": "application/json" } : undefined,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    }),
   upload: <T>(path: string, form: FormData) =>
     request<T>(path, { method: "POST", body: form }),
 };
