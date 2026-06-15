@@ -274,6 +274,27 @@ def cleanup_expired_exports(session: Session, export_storage: StorageBackend) ->
     return total
 
 
+def rewrap_blobs(session: Session, storage: object) -> dict[str, int]:
+    """Schluesselt alle Blobs auf die aktive Key-Version um. `storage` muss
+    rewrap(key)->bool unterstuetzen (EncryptedStorageBackend). Idempotent.
+
+    Duck-typed auf rewrap: ein nicht-verschluesselndes Backend ist ein No-Op,
+    damit dms_core nicht hart von EncryptedStorageBackend abhaengt."""
+    if not hasattr(storage, "rewrap"):
+        return {"rewrapped": 0, "skipped": 0, "errors": 0}
+    keys = [v.storage_key for v in session.exec(select(DocumentVersion)).all()]
+    rewrapped = skipped = errors = 0
+    for key in keys:
+        try:
+            if storage.rewrap(key):
+                rewrapped += 1
+            else:
+                skipped += 1
+        except StorageError:
+            errors += 1  # einzelner Blob blockiert die Rotation nicht
+    return {"rewrapped": rewrapped, "skipped": skipped, "errors": errors}
+
+
 def cleanup_audit_ip(session: Session, retention_days: int) -> int:
     cutoff = datetime.now(UTC) - timedelta(days=retention_days)
     # Nur ip_address -> NULL; der Audit-Trigger erlaubt genau diese Schwaerzung.

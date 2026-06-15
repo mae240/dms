@@ -26,6 +26,7 @@ TASK_EXPORT_USER_DATA = "tasks.export_user_data"
 TASK_CLEANUP_EXPORTS = "tasks.cleanup_expired_exports"
 TASK_CLEANUP_AUDIT_IP = "tasks.cleanup_audit_ip"
 TASK_AUTO_EXPIRE = "tasks.auto_soft_delete_expired"
+TASK_REWRAP_BLOBS = "tasks.rewrap_blobs"
 
 celery_app = Celery("dms", broker=settings.celery_broker_url)
 
@@ -48,6 +49,7 @@ celery_app.conf.update(
         TASK_CLEANUP_EXPORTS: {"queue": "maintenance"},
         TASK_CLEANUP_AUDIT_IP: {"queue": "maintenance"},
         TASK_AUTO_EXPIRE: {"queue": "maintenance"},
+        TASK_REWRAP_BLOBS: {"queue": "maintenance"},
     },
     beat_schedule={
         "purge-deleted-documents": {

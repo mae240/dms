@@ -14,6 +14,7 @@ from dms_core.celery_app import (
     TASK_CLEANUP_EXPORTS,
     TASK_EXPORT_USER_DATA,
     TASK_PURGE_DOCUMENTS,
+    TASK_REWRAP_BLOBS,
     celery_app,
 )
 from dms_core.config import settings
@@ -51,3 +52,9 @@ def cleanup_audit_ip() -> int:
 def auto_soft_delete_expired() -> int:
     with session_scope() as session:
         return maintenance.auto_soft_delete_expired(session)
+
+
+@celery_app.task(name=TASK_REWRAP_BLOBS)
+def rewrap_blobs() -> dict:
+    with session_scope() as session:
+        return maintenance.rewrap_blobs(session, get_storage())

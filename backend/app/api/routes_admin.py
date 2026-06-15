@@ -177,6 +177,18 @@ def download_export(
     )
 
 
+# ---- Storage / Key-Rotation (Superadmin) ----
+
+@router.post("/storage/rewrap", status_code=status.HTTP_202_ACCEPTED)
+def trigger_rewrap(_admin: SuperadminDep) -> dict:
+    """Stoesst die Umschluesselung aller Blobs auf die aktive Key-Version an
+    (per Button getriggert). Reine Enqueue-Aktion, kein DB-Schreibzugriff."""
+    from dms_core.celery_app import TASK_REWRAP_BLOBS, celery_app
+
+    celery_app.send_task(TASK_REWRAP_BLOBS)
+    return {"status": "enqueued"}
+
+
 # ---- Dokumentbezogene Compliance-Aktionen (Superadmin, projektunabhaengig) ----
 
 @router.post("/documents/{document_id}/set-retention", response_model=DocumentDetailOut)
