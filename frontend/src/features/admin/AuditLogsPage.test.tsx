@@ -51,4 +51,11 @@ describe("AuditLogsPage Metadaten (A3)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Details anzeigen" }));
     expect(screen.getByText("Keine Details")).toBeInTheDocument();
   });
+
+  it("zeigt 'Keine Details' wenn metadata ein leeres Objekt ist", async () => {
+    mockPage([makeLog({ metadata: {} })]);
+    render(<AuditLogsPage />);
+    await userEvent.click(screen.getByRole("button", { name: "Details anzeigen" }));
+    expect(screen.getByText("Keine Details")).toBeInTheDocument();
+  });
 });
