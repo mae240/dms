@@ -362,6 +362,12 @@ def test_admin_endpoints_require_superadmin(client: TestClient, db_session: Sess
     assert ok.json()["total"] >= 2
 
 
+def test_rewrap_requires_superadmin(client: TestClient, db_session: Session) -> None:
+    normal = make_user(db_session, "rewrap-normal@ex.com")
+    res = client.post("/api/admin/storage/rewrap", headers=bearer(normal))
+    assert res.status_code == 403
+
+
 def test_cleanup_audit_ip_redacts_old_ip(db_session: Session) -> None:
     row = AuditLog(
         action=AuditAction.user_login,
