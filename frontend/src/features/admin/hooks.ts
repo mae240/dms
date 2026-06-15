@@ -111,6 +111,15 @@ export function useSetRetention() {
   });
 }
 
+export function useRewrapStorage() {
+  return useMutation({
+    mutationFn: () => api.post<void>("/admin/storage/rewrap"),
+    onSuccess: () => {
+      toast.success("Schluessel-Rotation gestartet. Sie laeuft im Hintergrund.");
+    },
+  });
+}
+
 export function useSetLegalHold() {
   const qc = useQueryClient();
   return useMutation({
