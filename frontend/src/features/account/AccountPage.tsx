@@ -21,11 +21,15 @@ export function AccountPage() {
       return;
     }
     setMismatch(false);
-    await change.mutateAsync({ current_password: current, new_password: next });
-    setCurrent("");
-    setNext("");
-    setConfirm("");
-    setDone(true);
+    try {
+      await change.mutateAsync({ current_password: current, new_password: next });
+      setCurrent("");
+      setNext("");
+      setConfirm("");
+      setDone(true);
+    } catch {
+      /* Fehler via change.error im ErrorBanner */
+    }
   }
 
   return (
@@ -35,8 +39,9 @@ export function AccountPage() {
         title="Konto"
         note={`Angemeldet als ${user?.full_name || user?.email} (${user?.email}).`}
       />
-      <Card className="login-card">
-        <CardInner>
+      <div style={{ maxWidth: 520 }}>
+        <Card>
+          <CardInner>
           <SectionHead title="Passwort ändern" hint="Nach der Änderung werden andere Sitzungen abgemeldet." />
           <ErrorBanner error={change.error} />
           {mismatch && (
@@ -82,8 +87,9 @@ export function AccountPage() {
               {change.isPending ? "Wird geändert …" : "Passwort ändern"}
             </button>
           </form>
-        </CardInner>
-      </Card>
+          </CardInner>
+        </Card>
+      </div>
     </div>
   );
 }

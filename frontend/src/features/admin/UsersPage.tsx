@@ -140,17 +140,21 @@ function CreateUserForm() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    await create.mutateAsync({
-      email,
-      password,
-      full_name: fullName,
-      is_superadmin: isSuperadmin,
-    });
-    setEmail("");
-    setFullName("");
-    setPassword("");
-    setIsSuperadmin(false);
-    setOpen(false);
+    try {
+      await create.mutateAsync({
+        email,
+        password,
+        full_name: fullName,
+        is_superadmin: isSuperadmin,
+      });
+      setEmail("");
+      setFullName("");
+      setPassword("");
+      setIsSuperadmin(false);
+      setOpen(false);
+    } catch {
+      /* Fehler via create.error im ErrorBanner */
+    }
   }
 
   return (
