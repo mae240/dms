@@ -2,15 +2,26 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 
 import { Pagination } from "../../components/Pagination";
-import { Empty, ErrorBanner, Loading, StatusBadge } from "../../components/ui";
+import {
+  Badge,
+  Card,
+  CardInner,
+  Empty,
+  ErrorBanner,
+  Loading,
+  PageHead,
+  SectionHead,
+  StatusBadge,
+  Tabs,
+} from "../../components/ui";
 import { formatDate } from "../../lib/format";
 import type { ProjectStatus } from "../../types/api";
 import { PAGE_SIZE, useCreateProject, useProjects, useRestoreProject } from "./hooks";
 
-const VIEWS: { key: ProjectStatus; label: string }[] = [
-  { key: "active", label: "Aktiv" },
-  { key: "archived", label: "Archiviert" },
-  { key: "deleted", label: "Papierkorb" },
+const VIEWS: { id: ProjectStatus; label: string }[] = [
+  { id: "active", label: "Aktiv" },
+  { id: "archived", label: "Archiviert" },
+  { id: "deleted", label: "Papierkorb" },
 ];
 
 export function ProjectsPage() {
@@ -39,106 +50,104 @@ export function ProjectsPage() {
 
   return (
     <div>
-      <div className="row between">
-        <h1>Projekte</h1>
-        <div className="row">
-          {VIEWS.map((v) => (
-            <button
-              key={v.key}
-              className={`small ${view === v.key ? "primary" : ""}`}
-              onClick={() => switchView(v.key)}
-            >
-              {v.label}
-            </button>
-          ))}
-          {view === "active" && (
+      <PageHead
+        eyebrow="Projekte / Uebersicht"
+        title="Projekte"
+        actions={
+          view === "active" && (
             <button className="primary" onClick={() => setOpen((o) => !o)}>
               {open ? "Abbrechen" : "Neues Projekt"}
             </button>
-          )}
-        </div>
-      </div>
+          )
+        }
+      />
 
       {open && view === "active" && (
-        <form className="card" onSubmit={onCreate}>
-          <ErrorBanner error={create.error} />
-          <label>
-            <span>Name</span>
-            <input value={name} onChange={(e) => setName(e.target.value)} required />
-          </label>
-          <label>
-            <span>Beschreibung (optional)</span>
-            <input value={description} onChange={(e) => setDescription(e.target.value)} />
-          </label>
-          <button className="primary" type="submit" disabled={create.isPending}>
-            Anlegen
-          </button>
-        </form>
+        <Card>
+          <CardInner>
+            <SectionHead title="Neues Projekt" hint="Lege ein Projekt fuer ein Kundenengagement oder einen internen Bereich an." />
+            <form onSubmit={onCreate}>
+              <ErrorBanner error={create.error} />
+              <label>
+                <span>Name</span>
+                <input value={name} onChange={(e) => setName(e.target.value)} required />
+              </label>
+              <label>
+                <span>Beschreibung (optional)</span>
+                <input value={description} onChange={(e) => setDescription(e.target.value)} />
+              </label>
+              <button className="primary" type="submit" disabled={create.isPending}>
+                Anlegen
+              </button>
+            </form>
+          </CardInner>
+        </Card>
       )}
 
-      <ErrorBanner error={error || restore.error} />
-      <div className="card">
-        {isPending ? (
-          <Loading />
-        ) : !data?.items.length ? (
-          <Empty>
-            {isTrash
-              ? "Der Papierkorb ist leer."
-              : view === "archived"
-                ? "Keine archivierten Projekte."
-                : "Noch keine Projekte. Lege dein erstes Projekt an."}
-          </Empty>
-        ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Status</th>
-                <th>Deine Rolle</th>
-                <th>Erstellt</th>
-                {isTrash && <th></th>}
-              </tr>
-            </thead>
-            <tbody>
+      <Card>
+        <Tabs tabs={VIEWS} value={view} onChange={switchView} />
+        <CardInner>
+          <ErrorBanner error={error || restore.error} />
+          {isPending ? (
+            <Loading />
+          ) : !data?.items.length ? (
+            <Empty>
+              {isTrash
+                ? "Der Papierkorb ist leer."
+                : view === "archived"
+                  ? "Keine archivierten Projekte."
+                  : "Noch keine Projekte. Lege dein erstes Projekt an."}
+            </Empty>
+          ) : (
+            <div className="card-grid">
               {data.items.map((p) => (
-                <tr key={p.id}>
-                  <td>
-                    {isTrash ? p.name : <Link to={`/projects/${p.id}`}>{p.name}</Link>}
-                  </td>
-                  <td>
+                <div key={p.id} className="tile">
+                  <div className="row between">
+                    {isTrash ? (
+                      <strong>{p.name}</strong>
+                    ) : (
+                      <Link to={`/projects/${p.id}`}>
+                        <strong>{p.name}</strong>
+                      </Link>
+                    )}
                     <StatusBadge status={p.status} />
-                  </td>
-                  <td>
-                    <span className="badge">{p.my_role}</span>
-                  </td>
-                  <td className="muted">{formatDate(p.created_at)}</td>
-                  {isTrash && (
-                    <td>
-                      {p.my_role === "owner" && (
-                        <button
-                          className="small"
-                          disabled={restore.isPending}
-                          onClick={() => restore.mutate(p.id)}
-                        >
-                          Wiederherstellen
-                        </button>
-                      )}
-                    </td>
+                  </div>
+                  {p.description && (
+                    <p className="muted" style={{ margin: "10px 0 0" }}>
+                      {p.description}
+                    </p>
                   )}
-                </tr>
+                  <div className="row between" style={{ marginTop: 12 }}>
+                    {p.my_role && <Badge variant="primary">{p.my_role}</Badge>}
+                    <span className="muted" style={{ fontSize: "0.8rem" }}>
+                      {formatDate(p.created_at)}
+                    </span>
+                  </div>
+                  {isTrash && p.my_role === "owner" && (
+                    <div style={{ marginTop: 12 }}>
+                      <button
+                        className="small"
+                        disabled={restore.isPending}
+                        onClick={() => restore.mutate(p.id)}
+                      >
+                        Wiederherstellen
+                      </button>
+                    </div>
+                  )}
+                </div>
               ))}
-            </tbody>
-          </table>
-        )}
-        {data && (
-          <Pagination
-            total={data.total}
-            limit={data.limit}
-            offset={data.offset}
-            onChange={setOffset}
-          />
-        )}
-      </div>
+            </div>
+          )}
+          {data && (
+            <Pagination
+              total={data.total}
+              limit={data.limit}
+              offset={data.offset}
+              onChange={setOffset}
+            />
+          )}
+        </CardInner>
+      </Card>
     </div>
   );
 }

@@ -1,8 +1,21 @@
-import { Fragment, useRef, useState } from "react";
+import { Fragment, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { Pagination } from "../../components/Pagination";
-import { Empty, ErrorBanner, Loading, StatusBadge } from "../../components/ui";
+import {
+  Badge,
+  Card,
+  CardInner,
+  Empty,
+  ErrorBanner,
+  Loading,
+  PageHead,
+  ProgressBar,
+  SectionHead,
+  StatusBadge,
+  Tabs,
+  UploadZone,
+} from "../../components/ui";
 import { roleAtLeast } from "../../lib/can";
 import { confirmDialog } from "../../lib/confirm";
 import { triggerDownload } from "../../lib/download";
@@ -42,11 +55,17 @@ export function ProjectDetailPage() {
       <div className="breadcrumb">
         <Link to="/projects">Projekte</Link> / {p.name}
       </div>
-      <div className="row between">
-        <h1 style={{ margin: 0 }}>{p.name}</h1>
-        <span className="badge">{p.my_role}</span>
-      </div>
-      {p.description && <p className="muted">{p.description}</p>}
+      <PageHead
+        eyebrow="Projekt"
+        title={p.name}
+        note={p.description || undefined}
+        actions={
+          <>
+            <StatusBadge status={p.status} />
+            {p.my_role && <Badge variant="primary">{p.my_role}</Badge>}
+          </>
+        }
+      />
 
       {canManage && <ProjectSettings project={p} />}
       {canManage && <RetentionRulesCard projectId={projectId} />}
@@ -72,54 +91,56 @@ function ProjectSettings({ project }: { project: ProjectDetailOut }) {
   }
 
   return (
-    <div className="card">
-      <h2 style={{ marginTop: 0 }}>Projekt verwalten</h2>
-      <ErrorBanner error={update.error || del.error} />
-      <form onSubmit={onSave}>
-        <label>
-          <span>Name</span>
-          <input value={name} onChange={(e) => setName(e.target.value)} required />
-        </label>
-        <label>
-          <span>Beschreibung</span>
-          <input value={description} onChange={(e) => setDescription(e.target.value)} />
-        </label>
-        <div className="row">
-          <button className="primary" type="submit" disabled={update.isPending}>
-            Speichern
-          </button>
-          <button
-            type="button"
-            disabled={update.isPending}
-            onClick={() => update.mutate({ status: isArchived ? "active" : "archived" })}
-          >
-            {isArchived ? "Reaktivieren" : "Archivieren"}
-          </button>
-          {isOwner && (
+    <Card>
+      <CardInner>
+        <SectionHead title="Projekt verwalten" />
+        <ErrorBanner error={update.error || del.error} />
+        <form onSubmit={onSave}>
+          <label>
+            <span>Name</span>
+            <input value={name} onChange={(e) => setName(e.target.value)} required />
+          </label>
+          <label>
+            <span>Beschreibung</span>
+            <input value={description} onChange={(e) => setDescription(e.target.value)} />
+          </label>
+          <div className="row wrap">
+            <button className="primary" type="submit" disabled={update.isPending}>
+              Speichern
+            </button>
             <button
               type="button"
-              className="danger"
-              disabled={del.isPending}
-              onClick={async () => {
-                const ok = await confirmDialog({
-                  title: "Projekt loeschen",
-                  message:
-                    "Projekt in den Papierkorb verschieben? Es bleibt wiederherstellbar.",
-                  confirmLabel: "Loeschen",
-                  danger: true,
-                });
-                if (ok) {
-                  await del.mutateAsync(project.id);
-                  navigate("/projects");
-                }
-              }}
+              disabled={update.isPending}
+              onClick={() => update.mutate({ status: isArchived ? "active" : "archived" })}
             >
-              Loeschen
+              {isArchived ? "Reaktivieren" : "Archivieren"}
             </button>
-          )}
-        </div>
-      </form>
-    </div>
+            {isOwner && (
+              <button
+                type="button"
+                className="danger"
+                disabled={del.isPending}
+                onClick={async () => {
+                  const ok = await confirmDialog({
+                    title: "Projekt loeschen",
+                    message:
+                      "Projekt in den Papierkorb verschieben? Es bleibt wiederherstellbar.",
+                    confirmLabel: "Loeschen",
+                    danger: true,
+                  });
+                  if (ok) {
+                    await del.mutateAsync(project.id);
+                    navigate("/projects");
+                  }
+                }}
+              >
+                Loeschen
+              </button>
+            )}
+          </div>
+        </form>
+      </CardInner>
+    </Card>
   );
 }
 
@@ -156,83 +177,87 @@ function RetentionRulesCard({ projectId }: { projectId: string }) {
   }
 
   return (
-    <div className="card">
-      <h2 style={{ marginTop: 0 }}>Aufbewahrung</h2>
-      <p className="muted" style={{ fontSize: "0.8rem", marginTop: 0 }}>
-        Regeln bestimmen, nach wie vielen Tagen Dokumente automatisch geloescht werden. Kategorie
-        leer = Projekt-Default; Max-Tage „nie" = von der Loeschung ausgenommen.
-      </p>
-      <ErrorBanner error={error || upsert.error || remove.error} />
-      {isPending ? (
-        <Loading />
-      ) : !data?.length ? (
-        <Empty>Keine Aufbewahrungsregeln. Automatische Loeschung ist deaktiviert.</Empty>
-      ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>Kategorie</th>
-              <th>Max-Tage</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((r) => (
-              <tr key={r.id}>
-                <td>{r.category ?? "(Projekt-Default)"}</td>
-                <td>{r.max_days === null ? "nie" : r.max_days}</td>
-                <td>
-                  <button
-                    className="small danger"
-                    disabled={remove.isPending}
-                    onClick={() => onRemove(r.category)}
-                  >
-                    Entfernen
-                  </button>
-                </td>
+    <Card>
+      <CardInner>
+        <SectionHead
+          title="Aufbewahrung"
+          hint={'Regeln bestimmen, nach wie vielen Tagen Dokumente automatisch geloescht werden. Kategorie leer = Projekt-Default; Max-Tage „nie" = von der Loeschung ausgenommen.'}
+          actions={
+            !showForm && (
+              <button className="small" onClick={() => setShowForm(true)}>
+                + Regel
+              </button>
+            )
+          }
+        />
+        <ErrorBanner error={error || upsert.error || remove.error} />
+        {isPending ? (
+          <Loading />
+        ) : !data?.length ? (
+          <Empty>Keine Aufbewahrungsregeln. Automatische Loeschung ist deaktiviert.</Empty>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Kategorie</th>
+                <th>Max-Tage</th>
+                <th></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+            </thead>
+            <tbody>
+              {data.map((r) => (
+                <tr key={r.id}>
+                  <td>{r.category ?? "(Projekt-Default)"}</td>
+                  <td>{r.max_days === null ? "nie" : r.max_days}</td>
+                  <td>
+                    <button
+                      className="small danger"
+                      disabled={remove.isPending}
+                      onClick={() => onRemove(r.category)}
+                    >
+                      Entfernen
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
 
-      {showForm ? (
-        <form className="row wrap" style={{ marginTop: "1rem" }} onSubmit={onAdd}>
-          <input
-            style={{ flex: 2, minWidth: 180 }}
-            placeholder="Kategorie (leer = Projekt-Default)"
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-          />
-          <input
-            style={{ flex: 1, minWidth: 120 }}
-            type="number"
-            min={1}
-            placeholder="Max-Tage (leer = nie)"
-            value={maxDays}
-            onChange={(e) => setMaxDays(e.target.value)}
-          />
-          <button className="primary" type="submit" disabled={upsert.isPending}>
-            Speichern
-          </button>
-          <button
-            type="button"
-            disabled={upsert.isPending}
-            onClick={() => {
-              setShowForm(false);
-              setCategory("");
-              setMaxDays("");
-            }}
-          >
-            Abbrechen
-          </button>
-        </form>
-      ) : (
-        <button className="small" style={{ marginTop: "1rem" }} onClick={() => setShowForm(true)}>
-          + Regel
-        </button>
-      )}
-    </div>
+        {showForm && (
+          <form className="row wrap" style={{ marginTop: "1rem" }} onSubmit={onAdd}>
+            <input
+              style={{ flex: 2, minWidth: 180 }}
+              placeholder="Kategorie (leer = Projekt-Default)"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+            />
+            <input
+              style={{ flex: 1, minWidth: 120 }}
+              type="number"
+              min={1}
+              placeholder="Max-Tage (leer = nie)"
+              value={maxDays}
+              onChange={(e) => setMaxDays(e.target.value)}
+            />
+            <button className="primary" type="submit" disabled={upsert.isPending}>
+              Speichern
+            </button>
+            <button
+              type="button"
+              disabled={upsert.isPending}
+              onClick={() => {
+                setShowForm(false);
+                setCategory("");
+                setMaxDays("");
+              }}
+            >
+              Abbrechen
+            </button>
+          </form>
+        )}
+      </CardInner>
+    </Card>
   );
 }
 
@@ -258,158 +283,130 @@ function Members({
   }
 
   return (
-    <div className="card">
-      <h2 style={{ marginTop: 0 }}>Mitglieder</h2>
-      <ErrorBanner error={add.error || remove.error || changeRole.error} />
-      <table>
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>E-Mail</th>
-            <th>Rolle</th>
-            {canManage && <th></th>}
-          </tr>
-        </thead>
-        <tbody>
-          {members.map((m) => (
-            <tr key={m.user_id}>
-              <td>{m.full_name || "—"}</td>
-              <td className="mono">{m.email}</td>
-              <td>
-                {canManage && m.role !== "owner" ? (
-                  <select
-                    value={m.role}
-                    onChange={(e) =>
-                      changeRole.mutate({ userId: m.user_id, role: e.target.value as ProjectRole })
-                    }
-                    style={{ width: "auto" }}
-                  >
-                    <option value="viewer">viewer</option>
-                    <option value="editor">editor</option>
-                    <option value="admin">admin</option>
-                  </select>
-                ) : (
-                  <span className="badge">{m.role}</span>
-                )}
-              </td>
-              {canManage && (
+    <Card>
+      <CardInner>
+        <SectionHead title="Mitglieder" />
+        <ErrorBanner error={add.error || remove.error || changeRole.error} />
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>E-Mail</th>
+              <th>Rolle</th>
+              {canManage && <th></th>}
+            </tr>
+          </thead>
+          <tbody>
+            {members.map((m) => (
+              <tr key={m.user_id}>
+                <td>{m.full_name || "—"}</td>
+                <td className="mono">{m.email}</td>
                 <td>
-                  {m.role !== "owner" && (
-                    <button className="small danger" onClick={() => remove.mutate(m.user_id)}>
-                      Entfernen
-                    </button>
+                  {canManage && m.role !== "owner" ? (
+                    <select
+                      value={m.role}
+                      onChange={(e) =>
+                        changeRole.mutate({
+                          userId: m.user_id,
+                          role: e.target.value as ProjectRole,
+                        })
+                      }
+                      style={{ width: "auto" }}
+                    >
+                      <option value="viewer">viewer</option>
+                      <option value="editor">editor</option>
+                      <option value="admin">admin</option>
+                    </select>
+                  ) : (
+                    <Badge>{m.role}</Badge>
                   )}
                 </td>
-              )}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+                {canManage && (
+                  <td>
+                    {m.role !== "owner" && (
+                      <button className="small danger" onClick={() => remove.mutate(m.user_id)}>
+                        Entfernen
+                      </button>
+                    )}
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
 
-      {canManage && (
-        <form className="row wrap" style={{ marginTop: "1rem" }} onSubmit={onAdd}>
-          <input
-            style={{ flex: 2, minWidth: 220 }}
-            type="email"
-            placeholder="E-Mail des Mitglieds"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
-          <select
-            style={{ flex: 1, minWidth: 120 }}
-            value={role}
-            onChange={(e) => setRole(e.target.value as ProjectRole)}
-          >
-            <option value="viewer">viewer</option>
-            <option value="editor">editor</option>
-            <option value="admin">admin</option>
-          </select>
-          <button className="primary" type="submit" disabled={add.isPending}>
-            Hinzufuegen
-          </button>
-        </form>
-      )}
-    </div>
+        {canManage && (
+          <form className="row wrap" style={{ marginTop: "1rem" }} onSubmit={onAdd}>
+            <input
+              style={{ flex: 2, minWidth: 220 }}
+              type="email"
+              placeholder="E-Mail des Mitglieds"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+            <select
+              style={{ flex: 1, minWidth: 120 }}
+              value={role}
+              onChange={(e) => setRole(e.target.value as ProjectRole)}
+            >
+              <option value="viewer">viewer</option>
+              <option value="editor">editor</option>
+              <option value="admin">admin</option>
+            </select>
+            <button className="primary" type="submit" disabled={add.isPending}>
+              Hinzufuegen
+            </button>
+          </form>
+        )}
+      </CardInner>
+    </Card>
   );
 }
 
 function UploadCard({ projectId }: { projectId: string }) {
   const upload = useUploadDocument(projectId);
   const [title, setTitle] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-  const [drag, setDrag] = useState(false);
   const [progress, setProgress] = useState<number | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!file) return;
+  async function onFile(file: File) {
     const form = new FormData();
     form.append("file", file);
     form.append("title", title || file.name);
+    // Vorherigen Upload-Fehler verwerfen, damit der ErrorBanner beim erneuten Versuch verschwindet.
+    upload.reset();
     setProgress(0);
     try {
       await upload.mutateAsync({ form, onProgress: setProgress });
       setTitle("");
-      setFile(null);
-      if (inputRef.current) inputRef.current.value = "";
     } finally {
       setProgress(null);
     }
   }
 
   return (
-    <div className="card">
-      <h2 style={{ marginTop: 0 }}>Dokument hochladen</h2>
-      <ErrorBanner error={upload.error} />
-      <form onSubmit={onSubmit}>
+    <Card>
+      <CardInner>
+        <SectionHead
+          title="Dokument hochladen"
+          hint="Neuer Upload erzeugt Version 1 — vorhandene Versionen bleiben erhalten."
+        />
+        <ErrorBanner error={upload.error} />
         <label>
           <span>Titel (optional, sonst Dateiname)</span>
           <input value={title} onChange={(e) => setTitle(e.target.value)} />
         </label>
-        <div
-          className={`dropzone ${drag ? "drag" : ""}`}
-          onClick={() => inputRef.current?.click()}
-          onDragOver={(e) => {
-            e.preventDefault();
-            setDrag(true);
-          }}
-          onDragLeave={() => setDrag(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setDrag(false);
-            if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
-          }}
-        >
-          {file ? <strong>{file.name}</strong> : "Datei hierher ziehen oder klicken"}
-          <input
-            ref={inputRef}
-            type="file"
-            hidden
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-          />
-        </div>
-        {progress !== null && (
-          <div className="progress">
-            <div style={{ width: `${progress}%` }} />
-          </div>
-        )}
-        <p className="muted" style={{ fontSize: "0.8rem" }}>
-          Neuer Upload erzeugt Version 1 — vorhandene Versionen bleiben erhalten.
-        </p>
-        <button className="primary" type="submit" disabled={!file || upload.isPending}>
-          {upload.isPending ? `Lade hoch … ${progress ?? 0}%` : "Hochladen"}
-        </button>
-      </form>
-    </div>
+        <UploadZone onFile={onFile} disabled={upload.isPending} />
+        {progress !== null && <ProgressBar percent={progress} />}
+      </CardInner>
+    </Card>
   );
 }
 
-const VIEWS: { key: DocumentStatus; label: string }[] = [
-  { key: "active", label: "Aktiv" },
-  { key: "archived", label: "Archiviert" },
-  { key: "deleted", label: "Papierkorb" },
+const VIEWS: { id: DocumentStatus; label: string }[] = [
+  { id: "active", label: "Aktiv" },
+  { id: "archived", label: "Archiviert" },
+  { id: "deleted", label: "Papierkorb" },
 ];
 
 function DocumentsCard({ projectId }: { projectId: string }) {
@@ -436,130 +433,125 @@ function DocumentsCard({ projectId }: { projectId: string }) {
   }
 
   return (
-    <div className="card">
-      <div className="row between">
-        <h2 style={{ marginTop: 0 }}>Dokumente</h2>
-        <div className="row">
-          {VIEWS.map((v) => (
-            <button
-              key={v.key}
-              className={`small ${view === v.key ? "primary" : ""}`}
-              onClick={() => switchView(v.key)}
-            >
-              {v.label}
-            </button>
-          ))}
+    <Card>
+      <Tabs tabs={VIEWS} value={view} onChange={switchView} />
+      <CardInner>
+        <SectionHead title="Dokumente" />
+        <div className="toolbar">
+          <input
+            placeholder="Titel durchsuchen …"
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setOffset(0);
+            }}
+            style={{ minWidth: 240 }}
+          />
         </div>
-      </div>
-      <div className="toolbar">
-        <input
-          placeholder="Titel durchsuchen …"
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setOffset(0);
-          }}
-          style={{ minWidth: 240 }}
-        />
-      </div>
-      <ErrorBanner error={error || restore.error} />
-      {isPending ? (
-        <Loading />
-      ) : !data?.items.length ? (
-        <Empty>
-          {search
-            ? "Keine Treffer."
-            : isTrash
-              ? "Der Papierkorb ist leer."
-              : view === "archived"
-                ? "Keine archivierten Dokumente."
-                : "Noch keine aktiven Dokumente in diesem Projekt."}
-        </Empty>
-      ) : (
-        <table>
-          <thead>
-            <tr>
-              <th style={{ width: "1.5rem" }}></th>
-              <th>Titel</th>
-              <th>Status</th>
-              <th>Verarbeitung</th>
-              <th>Versionen</th>
-              <th>{isTrash ? "Endgueltige Loeschung" : "Aktualisiert"}</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.items.map((d) => {
-              const isOpen = expanded.has(d.id);
-              return (
-                <Fragment key={d.id}>
-                  <tr>
-                    <td>
-                      <button
-                        className="small"
-                        aria-label={isOpen ? "Einklappen" : "Versionen anzeigen"}
-                        onClick={() => toggle(d.id)}
-                        style={{ padding: "0.1rem 0.45rem" }}
-                      >
-                        {isOpen ? "▾" : "▸"}
-                      </button>
-                    </td>
-                    <td>
-                      <Link to={`/documents/${d.id}`}>{d.title}</Link>{" "}
-                      {d.legal_hold && <span className="badge failed">Hold</span>}{" "}
-                      {d.retention_until && (
-                        <span className="badge" title="Aufbewahrung bis">
-                          ⏲ {d.retention_until}
-                        </span>
-                      )}
-                    </td>
-                    <td>
-                      <StatusBadge status={d.status} />
-                    </td>
-                    <td>
-                      <StatusBadge status={d.latest_processing_status} />
-                    </td>
-                    <td>{d.version_count}</td>
-                    <td className="muted">
-                      {isTrash ? formatDate(d.purge_after) : formatDate(d.updated_at)}
-                    </td>
-                    <td>
-                      {isTrash ? (
-                        <button
-                          className="small"
-                          disabled={restore.isPending}
-                          onClick={() => restore.mutate(d.id)}
-                        >
-                          Wiederherstellen
-                        </button>
-                      ) : (
-                        <button
-                          className="small"
-                          disabled={d.latest_processing_status === "quarantined"}
-                          onClick={() => triggerDownload(`/documents/${d.id}/download`)}
-                        >
-                          Neueste laden
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                  {isOpen && (
+        <ErrorBanner error={error || restore.error} />
+        {isPending ? (
+          <Loading />
+        ) : !data?.items.length ? (
+          <Empty>
+            {search
+              ? "Keine Treffer."
+              : isTrash
+                ? "Der Papierkorb ist leer."
+                : view === "archived"
+                  ? "Keine archivierten Dokumente."
+                  : "Noch keine aktiven Dokumente in diesem Projekt."}
+          </Empty>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th style={{ width: "1.5rem" }}></th>
+                <th>Titel</th>
+                <th>Status</th>
+                <th>Verarbeitung</th>
+                <th>Versionen</th>
+                <th>{isTrash ? "Endgueltige Loeschung" : "Aktualisiert"}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.items.map((d) => {
+                const isOpen = expanded.has(d.id);
+                return (
+                  <Fragment key={d.id}>
                     <tr>
-                      <td colSpan={7} style={{ background: "var(--surface-2)" }}>
-                        <VersionList documentId={d.id} downloadDisabled={isTrash} />
+                      <td>
+                        <button
+                          className="small"
+                          aria-label={isOpen ? "Einklappen" : "Versionen anzeigen"}
+                          onClick={() => toggle(d.id)}
+                          style={{ padding: "0.1rem 0.45rem" }}
+                        >
+                          {isOpen ? "▾" : "▸"}
+                        </button>
+                      </td>
+                      <td>
+                        <Link to={`/documents/${d.id}`}>{d.title}</Link>{" "}
+                        {d.legal_hold && <span className="badge failed">Hold</span>}{" "}
+                        {d.retention_until && (
+                          <span className="badge" title="Aufbewahrung bis">
+                            ⏲ {d.retention_until}
+                          </span>
+                        )}
+                      </td>
+                      <td>
+                        <StatusBadge status={d.status} />
+                      </td>
+                      <td>
+                        <StatusBadge status={d.latest_processing_status} />
+                      </td>
+                      <td>{d.version_count}</td>
+                      <td className="muted">
+                        {isTrash ? formatDate(d.purge_after) : formatDate(d.updated_at)}
+                      </td>
+                      <td>
+                        {isTrash ? (
+                          <button
+                            className="small"
+                            disabled={restore.isPending}
+                            onClick={() => restore.mutate(d.id)}
+                          >
+                            Wiederherstellen
+                          </button>
+                        ) : (
+                          <button
+                            className="small"
+                            disabled={d.latest_processing_status === "quarantined"}
+                            onClick={() => triggerDownload(`/documents/${d.id}/download`)}
+                          >
+                            Neueste laden
+                          </button>
+                        )}
                       </td>
                     </tr>
-                  )}
-                </Fragment>
-              );
-            })}
-          </tbody>
-        </table>
-      )}
-      {data && (
-        <Pagination total={data.total} limit={data.limit} offset={data.offset} onChange={setOffset} />
-      )}
-    </div>
+                    {isOpen && (
+                      <tr>
+                        <td colSpan={7} style={{ background: "var(--surface-2)" }}>
+                          <VersionList documentId={d.id} downloadDisabled={isTrash} />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+        {data && (
+          <Pagination
+            total={data.total}
+            limit={data.limit}
+            offset={data.offset}
+            onChange={setOffset}
+          />
+        )}
+      </CardInner>
+    </Card>
   );
 }
 
