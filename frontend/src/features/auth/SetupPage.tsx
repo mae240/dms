@@ -25,6 +25,7 @@ export function SetupPage() {
     } catch (err) {
       if (err instanceof ApiError && err.code === "already_initialized") {
         toast.error("System ist bereits eingerichtet. Bitte anmelden.");
+        setPending(false);
         navigate("/login", { replace: true });
         return;
       }
