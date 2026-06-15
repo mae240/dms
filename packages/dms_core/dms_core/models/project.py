@@ -10,7 +10,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, Column, DateTime, String, UniqueConstraint
+from sqlalchemy import CheckConstraint, Column, DateTime, Integer, String, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 from dms_core.enums import ProjectRole, ProjectStatus, enum_check
@@ -54,4 +54,29 @@ class ProjectMember(SQLModel, table=True):
     project_id: uuid.UUID = fk_uuid("projects.id", nullable=False, ondelete="CASCADE")
     user_id: uuid.UUID = fk_uuid("users.id", nullable=False, ondelete="CASCADE", index=True)
     role: str = Field(sa_column=Column(String(20), nullable=False))
+    created_at: datetime = created_at_field()
+
+
+class RetentionRule(SQLModel, table=True):
+    """Maximal-Aufbewahrung pro Projekt (+ optional Kategorie). Art. 5(1e).
+
+    category = NULL  -> Projekt-Default (gilt fuer alle Kategorien ohne eigene Regel)
+    max_days = NULL  -> exempt (nie automatisch loeschen)
+    Aufloesung: spezifischste Regel (Projekt+Kategorie) schlaegt Projekt-Default.
+    """
+
+    __tablename__ = "retention_rules"
+    __table_args__ = (
+        UniqueConstraint(
+            "project_id",
+            "category",
+            name="retention_rule_scope",
+            postgresql_nulls_not_distinct=True,
+        ),
+    )
+
+    id: uuid.UUID = pk_field()
+    project_id: uuid.UUID = fk_uuid("projects.id", nullable=False, ondelete="CASCADE", index=True)
+    category: str | None = Field(default=None, sa_column=Column(String(100), nullable=True))
+    max_days: int | None = Field(default=None, sa_column=Column(Integer(), nullable=True))
     created_at: datetime = created_at_field()

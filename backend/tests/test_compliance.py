@@ -13,12 +13,81 @@ from dms_core.enums import AuditAction, DocumentStatus, ExportStatus
 from dms_core.models.audit import AuditLog
 from dms_core.models.document import Document
 from dms_core.models.export import UserExport
-from dms_core.models.project import ProjectMember
+from dms_core.models.project import ProjectMember, RetentionRule
 from dms_core.models.user import RefreshToken
 from tests.factories import bearer, make_document, make_project, make_user, make_version
 
 PAST = datetime(2020, 1, 1, tzinfo=UTC)
 FUTURE_DATE = date(2999, 1, 1)
+
+
+def _project_with_document(db_session, *, age_days, category=None):  # noqa: ANN001, ANN202
+    """Legt Projekt + aktives Dokument an, dessen created_at age_days zurueckliegt."""
+    owner = make_user(db_session, f"ret-{datetime.now(UTC).timestamp()}@ex.com")
+    project = make_project(db_session, owner)
+    doc = make_document(db_session, project_id=project.id, created_by=owner.id)
+    # created_at/category werden nach make_document(...) am Objekt gesetzt, da die
+    # Factory diese Felder nicht als Parameter akzeptiert.
+    doc.created_at = datetime.now(UTC) - timedelta(days=age_days)
+    doc.category = category
+    db_session.add(doc)
+    db_session.flush()
+    return project, doc
+
+
+def _rule(session, project, category, max_days):  # noqa: ANN001, ANN202
+    r = RetentionRule(project_id=project.id, category=category, max_days=max_days)
+    session.add(r)
+    session.flush()
+    return r
+
+
+def test_auto_expire_off_when_no_rule(db_session):  # noqa: ANN001
+    _, doc = _project_with_document(db_session, age_days=10_000)
+    assert maintenance.auto_soft_delete_expired(db_session) == 0
+    db_session.refresh(doc)
+    assert doc.status == "active"
+
+
+def test_auto_expire_project_default(db_session):  # noqa: ANN001
+    project, doc = _project_with_document(db_session, age_days=400)
+    doc.retention_until = None
+    db_session.add(doc)
+    _rule(db_session, project, None, 365)  # Projekt-Default
+    assert maintenance.auto_soft_delete_expired(db_session) == 1
+    db_session.refresh(doc)
+    assert doc.status == "deleted" and doc.purge_after is not None
+
+
+def test_category_rule_overrides_default(db_session):  # noqa: ANN001
+    project, doc = _project_with_document(db_session, age_days=400, category="Rechnung")
+    doc.retention_until = None
+    db_session.add(doc)
+    _rule(db_session, project, None, 365)          # Default: loeschen nach 365
+    _rule(db_session, project, "Rechnung", None)   # aber Rechnung = exempt
+    assert maintenance.auto_soft_delete_expired(db_session) == 0
+    db_session.refresh(doc)
+    assert doc.status == "active"
+
+
+def test_category_rule_shorter_than_default(db_session):  # noqa: ANN001
+    project, doc = _project_with_document(db_session, age_days=40, category="Entwurf")
+    doc.retention_until = None
+    db_session.add(doc)
+    _rule(db_session, project, "Entwurf", 30)  # Entwurf schon nach 30 Tagen weg
+    assert maintenance.auto_soft_delete_expired(db_session) == 1
+
+
+def test_auto_expire_respects_legal_hold_and_min_retention(db_session):  # noqa: ANN001
+    project, doc = _project_with_document(db_session, age_days=400)
+    _rule(db_session, project, None, 365)
+    doc.legal_hold = True
+    db_session.add(doc)
+    assert maintenance.auto_soft_delete_expired(db_session) == 0
+    doc.legal_hold = False
+    doc.retention_until = date.today() + timedelta(days=30)  # Mindest-Aufbewahrung laeuft noch
+    db_session.add(doc)
+    assert maintenance.auto_soft_delete_expired(db_session) == 0
 
 
 # ---------- Soft-Delete / Restore (API) ----------
@@ -291,6 +360,12 @@ def test_admin_endpoints_require_superadmin(client: TestClient, db_session: Sess
     ok = client.get("/api/admin/users", headers=bearer(admin))
     assert ok.status_code == 200
     assert ok.json()["total"] >= 2
+
+
+def test_rewrap_requires_superadmin(client: TestClient, db_session: Session) -> None:
+    normal = make_user(db_session, "rewrap-normal@ex.com")
+    res = client.post("/api/admin/storage/rewrap", headers=bearer(normal))
+    assert res.status_code == 403
 
 
 def test_cleanup_audit_ip_redacts_old_ip(db_session: Session) -> None:

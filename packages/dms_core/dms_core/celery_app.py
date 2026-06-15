@@ -25,6 +25,8 @@ TASK_PURGE_DOCUMENTS = "tasks.purge_deleted_documents"
 TASK_EXPORT_USER_DATA = "tasks.export_user_data"
 TASK_CLEANUP_EXPORTS = "tasks.cleanup_expired_exports"
 TASK_CLEANUP_AUDIT_IP = "tasks.cleanup_audit_ip"
+TASK_AUTO_EXPIRE = "tasks.auto_soft_delete_expired"
+TASK_REWRAP_BLOBS = "tasks.rewrap_blobs"
 
 celery_app = Celery("dms", broker=settings.celery_broker_url)
 
@@ -46,6 +48,8 @@ celery_app.conf.update(
         TASK_EXPORT_USER_DATA: {"queue": "maintenance"},
         TASK_CLEANUP_EXPORTS: {"queue": "maintenance"},
         TASK_CLEANUP_AUDIT_IP: {"queue": "maintenance"},
+        TASK_AUTO_EXPIRE: {"queue": "maintenance"},
+        TASK_REWRAP_BLOBS: {"queue": "maintenance"},
     },
     beat_schedule={
         "purge-deleted-documents": {
@@ -59,6 +63,10 @@ celery_app.conf.update(
         "cleanup-audit-ip": {
             "task": TASK_CLEANUP_AUDIT_IP,
             "schedule": crontab(minute=15, hour=4),  # taeglich 04:15 UTC
+        },
+        "auto-expire-documents": {
+            "task": TASK_AUTO_EXPIRE,
+            "schedule": crontab(minute=30, hour=2),  # taeglich 02:30 UTC, vor dem Purge
         },
     },
 )

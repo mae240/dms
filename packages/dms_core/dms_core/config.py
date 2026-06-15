@@ -47,6 +47,11 @@ class Settings(BaseSettings):
     storage_root: str = "/data/storage"
     export_root: str = "/data/exports"
 
+    # At-rest-Verschluesselung (Keyring). Format: "<id>:<base64-32B>,<id>:<base64-32B>".
+    # Leer = aus (nur Dev). In production Pflicht. storage_active_key_id = Version fuer neue Writes.
+    storage_encryption_keys: str = ""
+    storage_active_key_id: int = 1
+
     # Upload / Validierung
     max_upload_bytes: int = 50 * 1024 * 1024
     allowed_mime_types: str = (
@@ -78,6 +83,22 @@ class Settings(BaseSettings):
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
+    @property
+    def storage_keyring(self) -> dict[int, bytes]:
+        import base64
+
+        ring: dict[int, bytes] = {}
+        for part in self.storage_encryption_keys.split(","):
+            part = part.strip()
+            if not part:
+                continue
+            sid, _, b64 = part.partition(":")
+            key = base64.b64decode(b64, validate=True)
+            if len(key) != 32:
+                raise ValueError(f"Storage-Key {sid!r} ist nicht 32 Bytes")
+            ring[int(sid)] = key
+        return ring
+
     @field_validator("log_level")
     @classmethod
     def _upper(cls, v: str) -> str:
@@ -102,6 +123,15 @@ class Settings(BaseSettings):
                 "REFRESH_COOKIE_SECURE muss in Produktion 'true' sein (HTTPS erzwingen). "
                 "Das Refresh-Cookie darf nie unverschluesselt uebertragen werden."
             )
+        if self.environment == "production":
+            if not self.storage_encryption_keys:
+                raise ValueError(
+                    "STORAGE_ENCRYPTION_KEYS muss in Produktion gesetzt sein (Art. 32)."
+                )
+            if self.storage_active_key_id not in self.storage_keyring:
+                raise ValueError(
+                    "STORAGE_ACTIVE_KEY_ID ist nicht im STORAGE_ENCRYPTION_KEYS-Ring enthalten."
+                )
         return self
 
 

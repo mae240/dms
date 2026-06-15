@@ -12,7 +12,7 @@ from app.core.errors import bad_request, conflict, forbidden, not_found
 from app.core.project_access import get_membership
 from dms_core.audit import write_audit_log
 from dms_core.enums import AuditAction, ProjectRole, ProjectStatus
-from dms_core.models.project import Project, ProjectMember
+from dms_core.models.project import Project, ProjectMember, RetentionRule
 from dms_core.models.user import User
 
 
@@ -247,3 +247,75 @@ def remove_member(
         project_id=project_id,
         ip_address=ip,
     )
+
+
+def _find_retention_rule(
+    session: Session, project_id: uuid.UUID, category: str | None
+) -> RetentionRule | None:
+    return session.exec(
+        select(RetentionRule).where(
+            RetentionRule.project_id == project_id,
+            RetentionRule.category.is_(None)
+            if category is None
+            else RetentionRule.category == category,
+        )
+    ).first()
+
+
+def upsert_retention_rule(
+    session: Session,
+    *,
+    project: Project,
+    category: str | None,
+    max_days: int | None,
+    actor: User,
+    ip: str | None,
+) -> RetentionRule:
+    rule = _find_retention_rule(session, project.id, category)
+    if rule is None:
+        rule = RetentionRule(project_id=project.id, category=category, max_days=max_days)
+        session.add(rule)
+    else:
+        rule.max_days = max_days
+        session.add(rule)
+    write_audit_log(
+        session,
+        action=AuditAction.compliance_retention_set,
+        entity_type="retention_rule",
+        actor_user_id=actor.id,
+        entity_id=project.id,
+        project_id=project.id,
+        ip_address=ip,
+        metadata={"retention_rule": category or "<default>"},
+    )
+    session.flush()
+    return rule
+
+
+def list_retention_rules(session: Session, *, project: Project) -> list[RetentionRule]:
+    return list(
+        session.exec(
+            select(RetentionRule)
+            .where(RetentionRule.project_id == project.id)
+            .order_by(RetentionRule.created_at.asc())
+        ).all()
+    )
+
+
+def delete_retention_rule(
+    session: Session, *, project: Project, category: str | None, actor: User, ip: str | None
+) -> None:
+    rule = _find_retention_rule(session, project.id, category)
+    if rule is not None:
+        session.delete(rule)
+        write_audit_log(
+            session,
+            action=AuditAction.compliance_retention_removed,
+            entity_type="retention_rule",
+            actor_user_id=actor.id,
+            entity_id=project.id,
+            project_id=project.id,
+            ip_address=ip,
+            metadata={"retention_rule_removed": category or "<default>"},
+        )
+        session.flush()

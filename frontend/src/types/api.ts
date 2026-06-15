@@ -14,6 +14,7 @@ export const AUDIT_ACTIONS = [
   "document.restored",
   "document.metadata_updated",
   "document.purged",
+  "document.auto_expired",
   "user.password_changed",
   "document.version_reprocessed",
   "project.created",
@@ -26,6 +27,7 @@ export const AUDIT_ACTIONS = [
   "compliance.user_export_created",
   "compliance.user_export_downloaded",
   "compliance.retention_set",
+  "compliance.retention_removed",
   "compliance.legal_hold_set",
   "compliance.document_purged",
 ] as const;
@@ -165,4 +167,17 @@ export interface ExportOut {
   error: string | null;
   created_at: string;
   completed_at: string | null;
+}
+
+export interface RetentionRuleOut {
+  id: string;
+  project_id: string;
+  category: string | null; // null = Projekt-Default
+  max_days: number | null; // null = exempt ("nie loeschen")
+  created_at: string;
+}
+
+export interface RetentionRuleIn {
+  category: string | null; // null = Projekt-Default
+  max_days: number | null; // null = exempt ("nie loeschen")
 }

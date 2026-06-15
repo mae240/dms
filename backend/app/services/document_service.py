@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import uuid
 from dataclasses import dataclass
+from datetime import date, timedelta
 
 from fastapi import UploadFile
 from sqlalchemy import func
@@ -98,6 +99,11 @@ def create_document_with_version(
     actor: User,
     ip: str | None,
 ) -> tuple[Document, DocumentVersion]:
+    retention_until = (
+        date.today() + timedelta(days=settings.default_retention_days)
+        if settings.default_retention_days > 0
+        else None
+    )
     document = Document(
         id=uuid.uuid4(),
         project_id=project_id,
@@ -106,6 +112,7 @@ def create_document_with_version(
         category=category,
         status=DocumentStatus.active,
         created_by=actor.id,
+        retention_until=retention_until,
     )
     version_id = uuid.uuid4()
     blob = _store_upload(upload, document_id=document.id, version_id=version_id)
