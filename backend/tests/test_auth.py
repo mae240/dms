@@ -46,7 +46,9 @@ def test_login_success_and_wrong_password(client: TestClient, db_session: Sessio
     _register_admin(client)
     client.cookies.clear()
 
-    ok = client.post("/api/auth/login", json={"email": ADMIN["email"], "password": ADMIN["password"]})
+    ok = client.post(
+        "/api/auth/login", json={"email": ADMIN["email"], "password": ADMIN["password"]}
+    )
     assert ok.status_code == 200
     assert ok.json()["access_token"]
     assert settings.refresh_cookie_name in client.cookies
@@ -62,7 +64,9 @@ def test_login_success_and_wrong_password(client: TestClient, db_session: Sessio
 
 def test_unknown_user_is_generic_401(client: TestClient) -> None:
     _register_admin(client)
-    res = client.post("/api/auth/login", json={"email": "ghost@example.com", "password": "whatever1"})
+    res = client.post(
+        "/api/auth/login", json={"email": "ghost@example.com", "password": "whatever1"}
+    )
     assert res.status_code == 401
     assert res.json()["error"]["code"] == "invalid_credentials"
 
@@ -78,9 +82,7 @@ def test_refresh_rotates_and_old_token_is_rejected(client: TestClient) -> None:
     assert new_refresh and new_refresh != old_refresh
 
     # Alter (rotierter) Refresh-Token darf nicht mehr funktionieren.
-    reuse = client.post(
-        "/api/auth/refresh", cookies={settings.refresh_cookie_name: old_refresh}
-    )
+    reuse = client.post("/api/auth/refresh", cookies={settings.refresh_cookie_name: old_refresh})
     assert reuse.status_code == 401
 
 
@@ -108,19 +110,23 @@ def test_change_password(client: TestClient) -> None:
     assert ok.json()["access_token"]
 
     # Alter Refresh-Token wurde widerrufen.
-    reuse = client.post(
-        "/api/auth/refresh", cookies={settings.refresh_cookie_name: old_refresh}
-    )
+    reuse = client.post("/api/auth/refresh", cookies={settings.refresh_cookie_name: old_refresh})
     assert reuse.status_code == 401
 
     # Login mit neuem Passwort klappt, mit altem nicht.
     client.cookies.clear()
-    assert client.post(
-        "/api/auth/login", json={"email": ADMIN["email"], "password": "neuespasswort1"}
-    ).status_code == 200
-    assert client.post(
-        "/api/auth/login", json={"email": ADMIN["email"], "password": ADMIN["password"]}
-    ).status_code == 401
+    assert (
+        client.post(
+            "/api/auth/login", json={"email": ADMIN["email"], "password": "neuespasswort1"}
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            "/api/auth/login", json={"email": ADMIN["email"], "password": ADMIN["password"]}
+        ).status_code
+        == 401
+    )
 
 
 def test_logout_clears_and_revokes(client: TestClient) -> None:
@@ -131,7 +137,5 @@ def test_logout_clears_and_revokes(client: TestClient) -> None:
     assert out.status_code == 204
 
     # Revoketer Token darf nicht mehr refreshen.
-    res = client.post(
-        "/api/auth/refresh", cookies={settings.refresh_cookie_name: refresh_before}
-    )
+    res = client.post("/api/auth/refresh", cookies={settings.refresh_cookie_name: refresh_before})
     assert res.status_code == 401

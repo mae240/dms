@@ -38,16 +38,16 @@ def _sanitize_filename(name: str | None) -> str:
     return (cleaned or "datei")[:400]
 
 
-def _store_upload(upload: UploadFile, *, document_id: uuid.UUID, version_id: uuid.UUID) -> StoredBlob:
+def _store_upload(
+    upload: UploadFile, *, document_id: uuid.UUID, version_id: uuid.UUID
+) -> StoredBlob:
     src = upload.file  # synchrones File-Objekt (SpooledTemporaryFile)
     head = src.read(HEAD_BYTES)
     if not head:
         raise bad_request("Leere Datei", code="empty_file")
     mime = guess_mime_from_bytes(head)
     if mime not in settings.allowed_mime_set:
-        raise ApiError(
-            415, "unsupported_media_type", f"Dateityp nicht erlaubt: {mime}"
-        )
+        raise ApiError(415, "unsupported_media_type", f"Dateityp nicht erlaubt: {mime}")
     src.seek(0)
 
     storage_key = f"{document_id}/{version_id}"
@@ -160,9 +160,7 @@ def add_version(
     # dieselbe version_number berechnen (MAX+1) -> Unique-Verletzung + verwaister Blob.
     # FOR UPDATE sperrt die Document-Zeile, sodass Postgres die Uploads serialisiert.
     # Die Sperre haelt bis zum Commit der Request-Transaktion (Commit liegt in der Route).
-    session.exec(
-        select(Document).where(Document.id == document.id).with_for_update()
-    ).one()
+    session.exec(select(Document).where(Document.id == document.id).with_for_update()).one()
     max_num = session.exec(
         select(func.max(DocumentVersion.version_number)).where(
             DocumentVersion.document_id == document.id
@@ -172,9 +170,7 @@ def add_version(
 
     version_id = uuid.uuid4()
     blob = _store_upload(upload, document_id=document.id, version_id=version_id)
-    version = _new_version(
-        document_id=document.id, version_number=next_num, blob=blob, actor=actor
-    )
+    version = _new_version(document_id=document.id, version_number=next_num, blob=blob, actor=actor)
     version.id = version_id
     session.add(version)
     session.flush()

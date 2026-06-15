@@ -21,7 +21,9 @@ def _redis() -> redis.Redis:
     return _client
 
 
-def enforce_rate_limit(scope: str, identifier: str | None, *, limit: int, window_s: int = 60) -> None:
+def enforce_rate_limit(
+    scope: str, identifier: str | None, *, limit: int, window_s: int = 60
+) -> None:
     """Erhoeht den Zaehler fuer (scope, identifier) und wirft 429 bei Ueberschreitung.
 
     Faellt bei Redis-Ausfall bewusst offen (fail-open), um Logins nicht komplett

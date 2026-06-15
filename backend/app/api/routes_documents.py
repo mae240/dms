@@ -56,6 +56,7 @@ def _stream_blob(version: DocumentVersion) -> StreamingResponse:
 
 # ---- Projektgebundene Dokument-Liste / Upload ----
 
+
 @router.get("/projects/{project_id}/documents", response_model=Page[DocumentListItem])
 def list_documents(
     ctx: ProjViewer,
@@ -110,6 +111,7 @@ def upload_document(
 
 
 # ---- Einzelnes Dokument ----
+
 
 @router.get("/documents/{document_id}", response_model=DocumentDetailOut)
 def get_document(ctx: DocViewer, session: SessionDep) -> DocumentDetailOut:
@@ -187,6 +189,7 @@ def upload_version(
 
 # ---- Downloads (server-seitig autorisiert, keine oeffentlichen Pfade) ----
 
+
 @router.get("/documents/{document_id}/download")
 def download_current(ctx: DocViewer, session: SessionDep, request: Request) -> StreamingResponse:
     if ctx.document.status == DocumentStatus.deleted:
@@ -224,7 +227,9 @@ def reprocess_version(ctx: VersionEditor, session: SessionDep, request: Request)
 
 
 @router.get("/versions/{version_id}/download")
-def download_version(ctx: VersionViewer, session: SessionDep, request: Request) -> StreamingResponse:
+def download_version(
+    ctx: VersionViewer, session: SessionDep, request: Request
+) -> StreamingResponse:
     if ctx.document.status == DocumentStatus.deleted:
         raise not_found("Dokument nicht gefunden")
     write_audit_log(

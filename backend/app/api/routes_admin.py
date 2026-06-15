@@ -9,6 +9,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, Query, Request, status
 from fastapi.responses import StreamingResponse
 
+from app.api.routes_documents import build_detail
 from app.core.deps import SessionDep, SuperadminDep, get_client_ip
 from app.core.errors import not_found
 from app.core.tasks import enqueue_export_user_data
@@ -20,7 +21,6 @@ from app.schemas.admin import (
     LegalHoldSetIn,
     RetentionSetIn,
 )
-from app.api.routes_documents import build_detail
 from app.schemas.common import Page
 from app.schemas.document import DocumentDetailOut
 from app.services import compliance_service, document_service
