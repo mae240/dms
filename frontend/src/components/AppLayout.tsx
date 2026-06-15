@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 
 import { useAuth } from "../lib/auth";
@@ -8,23 +8,35 @@ export function AppLayout() {
   const { user, logout } = useAuth();
   const [open, setOpen] = useState(false);
   const close = () => setOpen(false);
-  const initials = (user?.full_name || user?.email || "?")
-    .split(/\s+/)
-    .map((p) => p[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
+  const raw = user?.full_name?.trim() || user?.email?.trim() || "?";
+  const initials =
+    raw.split(/\s+/).filter(Boolean).map((p) => p[0]).slice(0, 2).join("").toUpperCase() || "?";
+
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open]);
 
   return (
     <div className="layout">
       <div className="mobile-topbar">
-        <button className="icon-btn" onClick={() => setOpen(true)} aria-label="Menue oeffnen">
+        <button
+          className="icon-btn"
+          onClick={() => setOpen(true)}
+          aria-label="Menue oeffnen"
+          aria-expanded={open}
+          aria-controls="app-sidebar"
+        >
           <Glyph name="menu" />
         </button>
         <strong>DMS</strong>
       </div>
       {open && <div className="drawer-overlay" onClick={close} />}
-      <aside className={`sidebar${open ? " open" : ""}`}>
+      <aside id="app-sidebar" className={`sidebar${open ? " open" : ""}`}>
         <div className="brand">
           <div className="logo">D</div>
           <div>

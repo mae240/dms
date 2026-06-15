@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
 import { ApiError } from "../lib/apiClient";
@@ -118,6 +118,11 @@ export function KpiCard({
   );
 }
 
+/**
+ * Tab-Leiste. Konsumenten sollten ihren zugehoerigen Panel-Container mit
+ * `role="tabpanel"` sowie `id={`${...}-panel-${id}`}` rendern, passend zur
+ * `aria-controls`-Verknuepfung der jeweiligen Tab-Buttons.
+ */
 export function Tabs<T extends string>({
   tabs,
   value,
@@ -127,13 +132,16 @@ export function Tabs<T extends string>({
   value: T;
   onChange: (id: T) => void;
 }) {
+  const uid = useId();
   return (
     <div className="tabs" role="tablist">
       {tabs.map((t) => (
         <button
           key={t.id}
+          id={`${uid}-tab-${t.id}`}
           role="tab"
           aria-selected={t.id === value}
+          aria-controls={`${uid}-panel-${t.id}`}
           className={`tab${t.id === value ? " active" : ""}`}
           onClick={() => onChange(t.id)}
         >
@@ -170,7 +178,17 @@ export function UploadZone({
   return (
     <div
       className={`upload-zone${drag ? " drag" : ""}`}
+      role="button"
+      tabIndex={disabled ? -1 : 0}
+      aria-label="Datei hochladen"
+      aria-disabled={disabled}
       onClick={() => !disabled && inputRef.current?.click()}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          if (!disabled) inputRef.current?.click();
+        }
+      }}
       onDragOver={(e) => {
         e.preventDefault();
         if (!disabled) setDrag(true);
