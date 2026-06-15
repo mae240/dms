@@ -56,13 +56,21 @@ def purge_deleted_documents(session: Session, storage: StorageBackend) -> int:
         .limit(PURGE_BATCH)
     ).all()
 
+    # N+1 vermeiden: alle Versionen des Batches in EINEM Query laden und im
+    # Speicher nach document_id gruppieren.
+    doc_ids = [doc.id for doc in candidates]
+    versions_by_doc: dict[uuid.UUID, list[DocumentVersion]] = {doc.id: [] for doc in candidates}
+    if doc_ids:
+        for v in session.exec(
+            select(DocumentVersion).where(DocumentVersion.document_id.in_(doc_ids))
+        ).all():
+            versions_by_doc[v.document_id].append(v)
+
     purged = 0
     for doc in candidates:
         if doc.legal_hold:  # Defense in Depth (zusaetzlich zur WHERE-Clause)
             continue
-        versions = session.exec(
-            select(DocumentVersion).where(DocumentVersion.document_id == doc.id)
-        ).all()
+        versions = versions_by_doc.get(doc.id, [])
         for v in versions:
             _delete_blob(storage, v.storage_key)
             _delete_blob(storage, v.preview_storage_key)
@@ -177,28 +185,54 @@ def produce_export(session: Session, export_id: uuid.UUID, export_storage: Stora
 
 def cleanup_expired_exports(session: Session, export_storage: StorageBackend) -> int:
     now = datetime.now(UTC)
-    expired = session.exec(
-        select(UserExport).where(
-            UserExport.expires_at.is_not(None),
-            UserExport.expires_at <= now,
-            UserExport.status != ExportStatus.expired,
-        )
-    ).all()
-    for export in expired:
-        _delete_blob(export_storage, export.storage_key)
-        export.status = ExportStatus.expired
-        export.storage_key = None
-        session.add(export)
-    session.flush()
-    return len(expired)
+    # Gebatcht (LIMIT-Schleife), damit nicht unbegrenzt viele Zeilen in einer
+    # Transaktion gesperrt werden (gleiche Konstante wie purge_deleted_documents).
+    total = 0
+    while True:
+        expired = session.exec(
+            select(UserExport)
+            .where(
+                UserExport.expires_at.is_not(None),
+                UserExport.expires_at <= now,
+                UserExport.status != ExportStatus.expired,
+            )
+            .limit(PURGE_BATCH)
+        ).all()
+        if not expired:
+            break
+        for export in expired:
+            _delete_blob(export_storage, export.storage_key)
+            export.status = ExportStatus.expired
+            export.storage_key = None
+            session.add(export)
+        session.flush()
+        total += len(expired)
+        if len(expired) < PURGE_BATCH:
+            break
+    return total
 
 
 def cleanup_audit_ip(session: Session, retention_days: int) -> int:
     cutoff = datetime.now(UTC) - timedelta(days=retention_days)
     # Nur ip_address -> NULL; der Audit-Trigger erlaubt genau diese Schwaerzung.
-    result = session.exec(
-        update(AuditLog)
-        .where(AuditLog.created_at < cutoff, AuditLog.ip_address.is_not(None))
-        .values(ip_address=None)
-    )
-    return int(result.rowcount or 0)
+    # Gebatcht via Subquery auf id, damit ein langer Lock auf vielen Zeilen
+    # vermieden wird (Schleife bis keine Zeilen mehr betroffen sind).
+    total = 0
+    while True:
+        batch_ids = session.exec(
+            select(AuditLog.id)
+            .where(AuditLog.created_at < cutoff, AuditLog.ip_address.is_not(None))
+            .limit(PURGE_BATCH)
+        ).all()
+        if not batch_ids:
+            break
+        result = session.exec(
+            update(AuditLog)
+            .where(AuditLog.id.in_(batch_ids))
+            .values(ip_address=None)
+        )
+        affected = int(result.rowcount or 0)
+        total += affected
+        if affected < PURGE_BATCH:
+            break
+    return total

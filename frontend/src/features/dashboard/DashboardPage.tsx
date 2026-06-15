@@ -24,7 +24,7 @@ export function DashboardPage() {
           <Link to="/projects">Alle ansehen →</Link>
         </div>
         <ErrorBanner error={projects.error} />
-        {projects.isLoading ? (
+        {projects.isPending ? (
           <Loading />
         ) : (
           <p style={{ fontSize: "2rem", margin: "0.5rem 0" }}>{projects.data?.total ?? 0}</p>

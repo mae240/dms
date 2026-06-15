@@ -9,7 +9,7 @@ import { PAGE_SIZE, useAuditLogs, type AuditFilters } from "./hooks";
 export function AuditLogsPage() {
   const [filters, setFilters] = useState<AuditFilters>({});
   const [offset, setOffset] = useState(0);
-  const { data, isLoading, error } = useAuditLogs(filters, PAGE_SIZE, offset);
+  const { data, isPending, error } = useAuditLogs(filters, PAGE_SIZE, offset);
 
   function update(patch: Partial<AuditFilters>) {
     setFilters((f) => ({ ...f, ...patch }));
@@ -46,7 +46,7 @@ export function AuditLogsPage() {
           />
         </div>
         <ErrorBanner error={error} />
-        {isLoading ? (
+        {isPending ? (
           <Loading />
         ) : !data?.items.length ? (
           <Empty>Keine Eintraege.</Empty>

@@ -30,8 +30,13 @@ NAMING_CONVENTION = {
 metadata: MetaData = SQLModel.metadata
 metadata.naming_convention = NAMING_CONVENTION  # type: ignore[assignment]
 
+# Pool auf die FastAPI-Threadpool-Groesse (40) abstimmen, sonst droht
+# Pool-Erschoepfung (Default 5+10 < 40 gleichzeitige Sync-Endpunkte).
 engine = create_engine(
     settings.database_url,
+    pool_size=settings.db_pool_size,
+    max_overflow=settings.db_max_overflow,
+    pool_timeout=settings.db_pool_timeout,
     pool_pre_ping=True,
     echo=False,
 )

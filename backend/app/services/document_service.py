@@ -11,6 +11,7 @@ from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.core.errors import ApiError, bad_request
+from app.schemas.common import paginate
 from dms_core.audit import write_audit_log
 from dms_core.config import settings
 from dms_core.enums import AuditAction, DocumentStatus, ProcessingStatus
@@ -155,6 +156,13 @@ def add_version(
     actor: User,
     ip: str | None,
 ) -> DocumentVersion:
+    # Race Condition vermeiden: parallele Uploads desselben Dokuments wuerden sonst
+    # dieselbe version_number berechnen (MAX+1) -> Unique-Verletzung + verwaister Blob.
+    # FOR UPDATE sperrt die Document-Zeile, sodass Postgres die Uploads serialisiert.
+    # Die Sperre haelt bis zum Commit der Request-Transaktion (Commit liegt in der Route).
+    session.exec(
+        select(Document).where(Document.id == document.id).with_for_update()
+    ).one()
     max_num = session.exec(
         select(func.max(DocumentVersion.version_number)).where(
             DocumentVersion.document_id == document.id
@@ -222,31 +230,40 @@ def list_documents(
     if search:
         conditions.append(Document.title.ilike(f"%{search}%"))
 
-    total = session.exec(
-        select(func.count()).select_from(Document).where(*conditions)
-    ).one()
-    docs = session.exec(
-        select(Document)
-        .where(*conditions)
-        .order_by(Document.created_at.desc())
-        .limit(limit)
-        .offset(offset)
-    ).all()
+    docs, total = paginate(
+        session,
+        select(Document).where(*conditions).order_by(Document.created_at.desc()),
+        limit=limit,
+        offset=offset,
+    )
 
+    # Performance: nur die jeweils neueste Version pro Dokument laden (DISTINCT ON)
+    # statt aller Versionen -> O(docs) statt O(docs x versions).
     doc_ids = [d.id for d in docs]
-    versions_by_doc: dict[uuid.UUID, list[DocumentVersion]] = {d.id: [] for d in docs}
+    latest_by_doc: dict[uuid.UUID, DocumentVersion] = {}
+    count_by_doc: dict[uuid.UUID, int] = {}
     if doc_ids:
         for v in session.exec(
             select(DocumentVersion)
             .where(DocumentVersion.document_id.in_(doc_ids))
-            .order_by(DocumentVersion.version_number.desc())
+            .distinct(DocumentVersion.document_id)
+            .order_by(
+                DocumentVersion.document_id,
+                DocumentVersion.version_number.desc(),
+            )
         ).all():
-            versions_by_doc[v.document_id].append(v)
+            latest_by_doc[v.document_id] = v
+        # version_count separat als Aggregat (zeigt Gesamtzahl Versionen).
+        for doc_id, cnt in session.exec(
+            select(DocumentVersion.document_id, func.count())
+            .where(DocumentVersion.document_id.in_(doc_ids))
+            .group_by(DocumentVersion.document_id)
+        ).all():
+            count_by_doc[doc_id] = cnt
 
     items: list[dict] = []
     for d in docs:
-        versions = versions_by_doc.get(d.id, [])
-        latest = versions[0] if versions else None
+        latest = latest_by_doc.get(d.id)
         items.append(
             {
                 "id": d.id,
@@ -255,7 +272,7 @@ def list_documents(
                 "status": d.status,
                 "latest_version_number": latest.version_number if latest else None,
                 "latest_processing_status": latest.processing_status if latest else None,
-                "version_count": len(versions),
+                "version_count": count_by_doc.get(d.id, 0),
                 "created_at": d.created_at,
                 "updated_at": d.updated_at,
                 "deleted_at": d.deleted_at,
@@ -284,6 +301,7 @@ def update_metadata(
         changed["title"] = title
     if description is not None:
         document.description = description
+        # Bewusst kein Wert: Beschreibung kann PII enthalten (Datenminimierung Art. 5)
         changed["description"] = True
     if category is not None:
         document.category = category
@@ -352,12 +370,17 @@ def recent_documents(session: Session, *, user: User, limit: int = 10) -> list[d
     doc_ids = [d.id for d in docs]
     latest_status: dict[uuid.UUID, str] = {}
     if doc_ids:
+        # Nur die neueste Version pro Dokument laden (DISTINCT ON), nicht alle.
         for v in session.exec(
             select(DocumentVersion)
             .where(DocumentVersion.document_id.in_(doc_ids))
-            .order_by(DocumentVersion.version_number.desc())
+            .distinct(DocumentVersion.document_id)
+            .order_by(
+                DocumentVersion.document_id,
+                DocumentVersion.version_number.desc(),
+            )
         ).all():
-            latest_status.setdefault(v.document_id, v.processing_status)
+            latest_status[v.document_id] = v.processing_status
 
     return [
         {

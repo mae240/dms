@@ -14,7 +14,12 @@ export const AUDIT_ACTIONS = [
   "document.restored",
   "document.metadata_updated",
   "document.purged",
+  "user.password_changed",
+  "document.version_reprocessed",
   "project.created",
+  "project.updated",
+  "project.deleted",
+  "project.restored",
   "project.member_added",
   "project.member_removed",
   "project.member_role_changed",
@@ -26,6 +31,7 @@ export const AUDIT_ACTIONS = [
 ] as const;
 
 export type ProjectRole = "owner" | "admin" | "editor" | "viewer";
+export type ProjectStatus = "active" | "archived" | "deleted";
 export type DocumentStatus = "active" | "archived" | "deleted";
 export type ProcessingStatus =
   | "uploaded"
@@ -61,7 +67,7 @@ export interface ProjectOut {
   name: string;
   description: string | null;
   owner_id: string;
-  status: DocumentStatus; // active | archived | deleted
+  status: ProjectStatus; // active | archived | deleted
   created_at: string;
   my_role: ProjectRole | null;
 }
