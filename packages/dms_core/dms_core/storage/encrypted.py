@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 import struct
+import tempfile
 from collections.abc import Iterator
 from typing import BinaryIO
 
@@ -153,6 +154,8 @@ class EncryptedStorageBackend:
             (final,) = _HDR.unpack(r.read_exact(1))
             nonce = r.read_exact(_NONCE)
             (clen,) = _LEN.unpack(r.read_exact(_LEN.size))
+            if clen > _FRAME + 16:  # max. ein Plaintext-Frame + GCM-Tag
+                raise StorageError("Blob-Rahmenlaenge ungueltig (Manipulation?)")
             ct = r.read_exact(clen)
             try:
                 yield aes.decrypt(nonce, ct, _AAD.pack(index, final))
@@ -194,11 +197,17 @@ class EncryptedStorageBackend:
             )
         )
 
-        def _body() -> Iterator[bytes]:
-            yield new_header
-            yield from r.drain()  # restliche Frames unveraendert
-
-        self._inner.save(key, _IterReader(_body()))
+        # Re-wrappten Inhalt vollstaendig in eine Disk-Temp-Datei draining, BEVOR
+        # inner.save() denselben Key oeffnet: entkoppelt Lesen/Schreiben desselben
+        # Keys -> backend-unabhaengig sicher (kein Source-Verlust bei Backends, die
+        # das Ziel vor dem Leeren der Quelle zum Schreiben oeffnen). TemporaryFile
+        # liegt immer auf Disk (kein RAM-Puffer bis 50 MB).
+        with tempfile.TemporaryFile() as tmp:
+            tmp.write(new_header)
+            for chunk in r.drain():  # restliche Frames unveraendert
+                tmp.write(chunk)
+            tmp.seek(0)
+            self._inner.save(key, tmp)
         return True
 
     # ---- Pass-through ----
