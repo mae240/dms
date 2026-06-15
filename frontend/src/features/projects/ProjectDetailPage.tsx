@@ -42,7 +42,7 @@ export function ProjectDetailPage() {
   const { projectId = "" } = useParams();
   const project = useProject(projectId);
 
-  if (project.isLoading) return <Loading />;
+  if (project.isPending) return <Loading />;
   if (project.error) return <ErrorBanner error={project.error} />;
   if (!project.data) return <Empty>Projekt nicht gefunden.</Empty>;
 
@@ -318,13 +318,24 @@ function Members({
                       <option value="admin">admin</option>
                     </select>
                   ) : (
-                    <Badge>{m.role}</Badge>
+                    <Badge variant="primary">{m.role}</Badge>
                   )}
                 </td>
                 {canManage && (
                   <td>
                     {m.role !== "owner" && (
-                      <button className="small danger" onClick={() => remove.mutate(m.user_id)}>
+                      <button
+                        className="small danger"
+                        onClick={async () => {
+                          const ok = await confirmDialog({
+                            title: "Mitglied entfernen?",
+                            message: `Soll ${m.email} aus dem Projekt entfernt werden? Der Zugriff wird sofort entzogen.`,
+                            confirmLabel: "Entfernen",
+                            danger: true,
+                          });
+                          if (ok) remove.mutate(m.user_id);
+                        }}
+                      >
                         Entfernen
                       </button>
                     )}
@@ -562,8 +573,8 @@ function VersionList({
   documentId: string;
   downloadDisabled?: boolean;
 }) {
-  const { data, isLoading, error } = useVersions(documentId);
-  if (isLoading) return <div className="muted">Lade Versionen …</div>;
+  const { data, isPending, error } = useVersions(documentId);
+  if (isPending) return <div className="muted">Lade Versionen …</div>;
   if (error) return <ErrorBanner error={error} />;
   if (!data?.length) return <div className="muted">Keine Versionen.</div>;
   return (
