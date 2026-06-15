@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "../../lib/apiClient";
 
@@ -23,6 +23,10 @@ async function fillAndSubmit() {
 }
 
 describe("SetupPage", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("leitet bei Erfolg aufs Dashboard", async () => {
     registerFirstAdmin.mockResolvedValueOnce(undefined);
     render(<SetupPage />);
@@ -38,5 +42,15 @@ describe("SetupPage", () => {
     await fillAndSubmit();
     await waitFor(() => expect(toastError).toHaveBeenCalled());
     expect(navigate).toHaveBeenCalledWith("/login", { replace: true });
+  });
+
+  it("zeigt Fehlermeldung bei allgemeinem Fehler", async () => {
+    registerFirstAdmin.mockRejectedValueOnce(
+      new ApiError(500, "internal_error", "Serverfehler"),
+    );
+    render(<SetupPage />);
+    await fillAndSubmit();
+    await waitFor(() => expect(screen.getByText("Serverfehler")).toBeInTheDocument());
+    expect(navigate).not.toHaveBeenCalled();
   });
 });

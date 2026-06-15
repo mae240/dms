@@ -20,7 +20,7 @@ export function LoginPage() {
     setBusy(true);
     try {
       await login(email, password);
-      navigate("/dashboard");
+      navigate("/dashboard", { replace: true });
     } catch (err) {
       setError(err);
     } finally {
