@@ -23,7 +23,10 @@ import { useProjects, useRecentDocuments, useUploadDocument } from "../projects/
 
 export function DashboardPage() {
   const { user } = useAuth();
-  const activeProjects = useProjects("active");
+  // Grid + Schnell-Upload-Select zeigen bis zu 100 aktive Projekte; vollstaendige
+  // Verwaltung laeuft ueber die Projekte-Seite. Die KPI nutzt weiter .total (echte Anzahl).
+  const activeProjects = useProjects("active", 100);
+  // Nur fuer die KPI ".total" genutzt → Default-Limit reicht.
   const archivedProjects = useProjects("archived");
   const recent = useRecentDocuments();
 
@@ -187,6 +190,8 @@ function UploadField({ projectId }: { projectId: string }) {
 
   async function onFile(file: File) {
     if (!projectId) return;
+    // Vorherigen Upload-Fehler verwerfen, damit der ErrorBanner beim erneuten Versuch verschwindet.
+    upload.reset();
     const form = new FormData();
     form.append("file", file);
     form.append("title", file.name);
