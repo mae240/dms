@@ -13,7 +13,7 @@ from dms_core.enums import AuditAction, DocumentStatus, ExportStatus
 from dms_core.models.audit import AuditLog
 from dms_core.models.document import Document
 from dms_core.models.export import UserExport
-from dms_core.models.project import ProjectMember
+from dms_core.models.project import ProjectMember, RetentionRule
 from dms_core.models.user import RefreshToken
 from tests.factories import bearer, make_document, make_project, make_user, make_version
 
@@ -26,6 +26,8 @@ def _project_with_document(db_session, *, age_days, category=None):  # noqa: ANN
     owner = make_user(db_session, f"ret-{datetime.now(UTC).timestamp()}@ex.com")
     project = make_project(db_session, owner)
     doc = make_document(db_session, project_id=project.id, created_by=owner.id)
+    # created_at/category werden nach make_document(...) am Objekt gesetzt, da die
+    # Factory diese Felder nicht als Parameter akzeptiert.
     doc.created_at = datetime.now(UTC) - timedelta(days=age_days)
     doc.category = category
     db_session.add(doc)
@@ -34,7 +36,6 @@ def _project_with_document(db_session, *, age_days, category=None):  # noqa: ANN
 
 
 def _rule(session, project, category, max_days):  # noqa: ANN001, ANN202
-    from dms_core.models.project import RetentionRule
     r = RetentionRule(project_id=project.id, category=category, max_days=max_days)
     session.add(r)
     session.flush()
@@ -42,7 +43,6 @@ def _rule(session, project, category, max_days):  # noqa: ANN001, ANN202
 
 
 def test_auto_expire_off_when_no_rule(db_session):  # noqa: ANN001
-    from dms_core import maintenance
     _, doc = _project_with_document(db_session, age_days=10_000)
     assert maintenance.auto_soft_delete_expired(db_session) == 0
     db_session.refresh(doc)
@@ -50,7 +50,6 @@ def test_auto_expire_off_when_no_rule(db_session):  # noqa: ANN001
 
 
 def test_auto_expire_project_default(db_session):  # noqa: ANN001
-    from dms_core import maintenance
     project, doc = _project_with_document(db_session, age_days=400)
     doc.retention_until = None
     db_session.add(doc)
@@ -61,7 +60,6 @@ def test_auto_expire_project_default(db_session):  # noqa: ANN001
 
 
 def test_category_rule_overrides_default(db_session):  # noqa: ANN001
-    from dms_core import maintenance
     project, doc = _project_with_document(db_session, age_days=400, category="Rechnung")
     doc.retention_until = None
     db_session.add(doc)
@@ -73,7 +71,6 @@ def test_category_rule_overrides_default(db_session):  # noqa: ANN001
 
 
 def test_category_rule_shorter_than_default(db_session):  # noqa: ANN001
-    from dms_core import maintenance
     project, doc = _project_with_document(db_session, age_days=40, category="Entwurf")
     doc.retention_until = None
     db_session.add(doc)
@@ -82,7 +79,6 @@ def test_category_rule_shorter_than_default(db_session):  # noqa: ANN001
 
 
 def test_auto_expire_respects_legal_hold_and_min_retention(db_session):  # noqa: ANN001
-    from dms_core import maintenance
     project, doc = _project_with_document(db_session, age_days=400)
     _rule(db_session, project, None, 365)
     doc.legal_hold = True
