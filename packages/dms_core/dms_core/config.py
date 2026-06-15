@@ -50,7 +50,7 @@ class Settings(BaseSettings):
     # At-rest-Verschluesselung (Keyring). Format: "<id>:<base64-32B>,<id>:<base64-32B>".
     # Leer = aus (nur Dev). In production Pflicht. storage_active_key_id = Version fuer neue Writes.
     storage_encryption_keys: str = ""
-    storage_active_key_id: int = 0
+    storage_active_key_id: int = 1
 
     # Upload / Validierung
     max_upload_bytes: int = 50 * 1024 * 1024

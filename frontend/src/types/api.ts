@@ -27,6 +27,7 @@ export const AUDIT_ACTIONS = [
   "compliance.user_export_created",
   "compliance.user_export_downloaded",
   "compliance.retention_set",
+  "compliance.retention_removed",
   "compliance.legal_hold_set",
   "compliance.document_purged",
 ] as const;
