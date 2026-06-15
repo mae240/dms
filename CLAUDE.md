@@ -129,6 +129,13 @@ routes_*.py (Controller)  →  services/*.py (Business)  →  dms_core/models (O
 - Fehlertexte an den Client sind generisch — keine internen Pfade/Stacktraces (auch nicht in `processing_error` o.ä.). Technische Details server-seitig loggen.
 - DSGVO-Datenminimierung im Audit-Log: keine Klartext-PII in `metadata` (E-Mails hashen, Beschreibungen nicht im Klartext loggen). `entity_id` reicht zur Zuordnung.
 
+### Retention-Policy (G-3)
+- `documents.retention_until` = gesetzliche **Mindest-Aufbewahrung** (Date). Wird beim Upload aus `settings.default_retention_days` (Default: 365) befüllt, pro Dokument ueberschreibbar. Solange `retention_until` in der Zukunft liegt, sind weder manuelles Loeschen noch Auto-Expire erlaubt — auch `legal_hold` nicht umgehbar.
+- `retention_rules(project_id, category, max_days)` = **Maximal-Aufbewahrung** pro Projekt/Kategorie. `category=NULL` = Projekt-Default (gilt fuer alle Kategorien ohne eigene Regel). Kategorie-Regel gewinnt immer — auch wenn `max_days=NULL` (= Exempt: kein Auto-Delete fuer diese Kategorie). Kein Treffer → kein Auto-Expire (Default: aus). Unique-Constraint `(project_id, category)` NULLS NOT DISTINCT.
+- **Aus-Schalter:** Projekt-Default-Regel loeschen (`DELETE` bei `category=NULL`) deaktiviert Auto-Expire projektweise. Kategorie schuetzen: Regel mit `max_days=NULL` setzen.
+- Beat-Task `auto_soft_delete_expired` laeuft taeglich 02:30 UTC (vor dem 03:00-Hard-Purge): setzt abgelaufene aktive Dokumente auf `status=deleted` + `purge_after = now + purge_grace_days`. Hard-Purge danach durch bestehenden Wartungs-Task.
+- API: `PUT/GET/DELETE /api/projects/{id}/retention-rules` (Projekt-Admin). Audit-Actions: `compliance.retention_set`, `compliance.retention_removed`, `document.auto_expired`.
+
 ### Worker / Skalierung
 - Große Dateien (bis 50 MB) NICHT komplett in den RAM. Streamen: SHA chunked, MIME nur `HEAD_BYTES`, Extraktion über seekbares Tempfile.
 - Wartungs-Kernlogik gehört in `dms_core/maintenance.py` (Session+Storage als Param → testbar); Worker-Tasks sind dünne Wrapper. Tasks idempotent (`acks_late` + Status-Check), Enqueue strikt NACH Commit.
@@ -165,4 +172,5 @@ routes_*.py (Controller)  →  services/*.py (Business)  →  dms_core/models (O
 - **MVP M0–M7:** Vollständiges DMS (Auth, Projekte, Dokumente+Versionen, Compliance/Audit, Export, Wartung).
 - **Runde 2:** Frontend-Verbesserungen (Pagination, Suche, Upload-Progress, Toasts, Breadcrumbs) + Endpoints `POST /admin/users`, `PATCH /projects/{id}/members/{user_id}`.
 - **Runde 3:** Projekt-Status-Verwaltung (active/archived/deleted + soft-delete/restore), Version-Reprocess, Passwort ändern, Dashboard „zuletzt bearbeitet".
+- **G-3 Retention-Policy 2026-06-15** (Branch `fix/g3-g1-umsetzung`): Mindest- (`retention_until`) + Maximal-Aufbewahrung (`retention_rules`), Beat-Task `auto_soft_delete_expired`, API `PUT/GET/DELETE /api/projects/{id}/retention-rules`, Audit-Actions.
 - **Review-/Fix-Pass 2026-06-15** (Branch `fix/review-findings-2026-06-15`): Multi-Agent-Repo-Review (Security/Quality/Architektur/Modernization), anschließend 2 Critical + 9 High + 13 Medium + 7 Low gefixt. Schwerpunkte: Proxy-Trust/Rate-Limit-Härtung (IP-Spoofing, fail-closed, register-Limit, atomarer Redis-Zähler), Seed-/Prod-Secret-Schutz, CSP/HSTS-Header, DB-Connection-Pool, Worker-Streaming statt RAM-Vollladung, `add_version`-Race-Lock, N+1/Version-Lade-Fixes via `DISTINCT ON`, Such-/Audit-Indizes (`pg_trgm` GIN + `actor_user_id` + Composite), DSGVO-Audit-PII-Minimierung, generischer `paginate`-Helfer; Frontend: `confirmDialog` statt `window.confirm`, `lib/download`-Dedup, `keepPreviousData`/`isPending`, Upload-Abort, `ProjectStatus`-Typ, vollständige `AUDIT_ACTIONS`. **Deferred** (eigene Tasks, zu groß/API-brechend): Keyset-Pagination für Audit-`COUNT(*)`, `tsvector`-Volltextsuche auf `extracted_text`, Multi-Tenancy, Audit-Trigger-`created_at`-Guard (App-Check existiert), SFTP-Storage-Backend.
