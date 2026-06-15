@@ -31,14 +31,16 @@ def get_document_or_404(session: Session, document_id: uuid.UUID) -> Document:
 
 # ---- Soft-Delete / Restore (projektgebunden) ----
 
+
 def soft_delete_document(
     session: Session, *, document: Document, actor: User, ip: str | None
 ) -> Document:
     if document.status == DocumentStatus.deleted:
         raise bad_request("Dokument ist bereits geloescht", code="already_deleted")
     if document.legal_hold:
-        raise conflict("Dokument steht unter Legal Hold und kann nicht geloescht werden",
-                       code="legal_hold")
+        raise conflict(
+            "Dokument steht unter Legal Hold und kann nicht geloescht werden", code="legal_hold"
+        )
 
     now = datetime.now(UTC)
     document.status = DocumentStatus.deleted
@@ -63,8 +65,9 @@ def restore_document(
     session: Session, *, document: Document, actor: User, ip: str | None
 ) -> Document:
     if document.status != DocumentStatus.deleted:
-        raise bad_request("Nur geloeschte Dokumente koennen wiederhergestellt werden",
-                          code="not_deleted")
+        raise bad_request(
+            "Nur geloeschte Dokumente koennen wiederhergestellt werden", code="not_deleted"
+        )
     document.status = DocumentStatus.active
     document.deleted_at = None
     document.deleted_by = None
@@ -84,8 +87,14 @@ def restore_document(
 
 # ---- Retention / Legal Hold (superadmin) ----
 
+
 def set_retention(
-    session: Session, *, document: Document, retention_until: date | None, actor: User, ip: str | None
+    session: Session,
+    *,
+    document: Document,
+    retention_until: date | None,
+    actor: User,
+    ip: str | None,
 ) -> Document:
     document.retention_until = retention_until
     session.add(document)
@@ -121,6 +130,7 @@ def set_legal_hold(
 
 
 # ---- Admin-Listen ----
+
 
 def create_user(
     session: Session,
@@ -189,6 +199,7 @@ def list_audit_logs(
 
 # ---- User-Export (Art. 15/20) ----
 
+
 def create_user_export(
     session: Session, *, subject_user_id: uuid.UUID, actor: User, ip: str | None
 ) -> UserExport:
@@ -233,6 +244,7 @@ def get_export_or_404(session: Session, export_id: uuid.UUID) -> UserExport:
 
 
 # ---- User-Anonymisierung (Art. 17) ----
+
 
 def anonymize_user(
     session: Session, *, target_user_id: uuid.UUID, actor: User, ip: str | None

@@ -10,7 +10,9 @@ from dms_core.models.audit import AuditLog
 from tests.factories import bearer, make_user
 
 
-def _create_project(client: TestClient, owner_headers: dict[str, str], name: str = "Kunde A") -> str:
+def _create_project(
+    client: TestClient, owner_headers: dict[str, str], name: str = "Kunde A"
+) -> str:
     res = client.post("/api/projects", json={"name": name}, headers=owner_headers)
     assert res.status_code == 201, res.text
     body = res.json()

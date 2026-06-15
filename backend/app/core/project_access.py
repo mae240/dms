@@ -14,10 +14,9 @@ Zugriff — so bleibt die Projekt-Isolation strikt.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
-from fastapi import Depends
 from sqlmodel import Session, select
 
 from app.core.deps import CurrentUser, SessionDep
@@ -53,9 +52,7 @@ class VersionContext:
 def require_project_role(
     min_role: str, *, allow_deleted: bool = False
 ) -> Callable[..., ProjectContext]:
-    def dependency(
-        project_id: uuid.UUID, user: CurrentUser, session: SessionDep
-    ) -> ProjectContext:
+    def dependency(project_id: uuid.UUID, user: CurrentUser, session: SessionDep) -> ProjectContext:
         project = session.get(Project, project_id)
         if project is None or (project.deleted_at is not None and not allow_deleted):
             raise not_found("Projekt nicht gefunden")
@@ -75,7 +72,9 @@ def require_project_role(
     return dependency
 
 
-def get_membership(session: Session, project_id: uuid.UUID, user_id: uuid.UUID) -> ProjectMember | None:
+def get_membership(
+    session: Session, project_id: uuid.UUID, user_id: uuid.UUID
+) -> ProjectMember | None:
     return session.exec(
         select(ProjectMember).where(
             ProjectMember.project_id == project_id,
@@ -102,9 +101,7 @@ def require_document_role(min_role: str) -> Callable[..., DocumentContext]:
 
 
 def require_version_access(min_role: str) -> Callable[..., VersionContext]:
-    def dependency(
-        version_id: uuid.UUID, user: CurrentUser, session: SessionDep
-    ) -> VersionContext:
+    def dependency(version_id: uuid.UUID, user: CurrentUser, session: SessionDep) -> VersionContext:
         version = session.get(DocumentVersion, version_id)
         if version is None:
             raise not_found("Version nicht gefunden")
@@ -116,8 +113,6 @@ def require_version_access(min_role: str) -> Callable[..., VersionContext]:
             raise not_found("Version nicht gefunden")
         if not role_satisfies(membership.role, min_role):
             raise forbidden("Rolle fuer diese Aktion unzureichend")
-        return VersionContext(
-            version=version, document=document, user=user, role=membership.role
-        )
+        return VersionContext(version=version, document=document, user=user, role=membership.role)
 
     return dependency

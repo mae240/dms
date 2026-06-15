@@ -8,6 +8,7 @@ uebernimmt der aufrufende Scope (Worker: session_scope).
 
 from __future__ import annotations
 
+import contextlib
 import io
 import json
 import uuid
@@ -31,10 +32,9 @@ PURGE_BATCH = 200
 def _delete_blob(storage: StorageBackend, key: str | None) -> None:
     if not key:
         return
-    try:
+    # idempotent: fehlende/fehlerhafte Blobs blockieren den Purge nicht
+    with contextlib.suppress(StorageError):
         storage.delete(key)
-    except StorageError:
-        pass  # idempotent: fehlende/fehlerhafte Blobs blockieren den Purge nicht
 
 
 def purge_deleted_documents(session: Session, storage: StorageBackend) -> int:

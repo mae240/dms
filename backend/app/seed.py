@@ -120,11 +120,11 @@ def _ensure_demo_document(session: Session, project: Project, author: User) -> N
         return
 
     content = (
-        "RAHMENVERTRAG\n\n"
-        "Zwischen der Beispiel GmbH und dem Kunden.\n"
-        "Paragraph 1: Leistungsumfang.\n"
-        "Paragraph 2: Laufzeit 12 Monate.\n"
-    ).encode("utf-8")
+        b"RAHMENVERTRAG\n\n"
+        b"Zwischen der Beispiel GmbH und dem Kunden.\n"
+        b"Paragraph 1: Leistungsumfang.\n"
+        b"Paragraph 2: Laufzeit 12 Monate.\n"
+    )
 
     document = Document(
         id=uuid.uuid4(),

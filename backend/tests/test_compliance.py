@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import uuid
 from datetime import UTC, date, datetime, timedelta
 
 from fastapi.testclient import TestClient

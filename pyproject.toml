@@ -22,6 +22,10 @@ ignore = ["B008"]  # FastAPI Depends() in default args ist gewollt
 [tool.ruff.lint.isort]
 known-first-party = ["dms_core", "app", "worker"]
 
+[tool.ruff.lint.per-file-ignores]
+# Alembic-Migrationen sind autogeneriert; lange sa.Column(...)-Zeilen sind Konvention.
+"alembic/versions/*" = ["E501"]
+
 [tool.mypy]
 python_version = "3.12"
 plugins = ["pydantic.mypy"]

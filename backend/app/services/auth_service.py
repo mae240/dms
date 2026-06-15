@@ -190,7 +190,9 @@ def change_password(
     return new_refresh
 
 
-def logout(session: Session, *, plain: str | None, actor_user_id: uuid.UUID | None, ip: str | None) -> None:
+def logout(
+    session: Session, *, plain: str | None, actor_user_id: uuid.UUID | None, ip: str | None
+) -> None:
     if plain:
         token = session.exec(
             select(RefreshToken).where(RefreshToken.token_hash == hash_refresh_token(plain))

@@ -7,6 +7,7 @@ aus, bleibt die Version im Status 'uploaded' und kann re-enqueued werden.
 
 from __future__ import annotations
 
+import contextlib
 import uuid
 
 from dms_core.celery_app import (
@@ -17,14 +18,11 @@ from dms_core.celery_app import (
 
 
 def enqueue_process_version(version_id: uuid.UUID) -> None:
-    try:
+    # Broker-Ausfall darf den Request nicht killen (best-effort, re-enqueue moeglich).
+    with contextlib.suppress(Exception):
         celery_app.send_task(TASK_PROCESS_VERSION, args=[str(version_id)])
-    except Exception:  # noqa: BLE001  (Broker-Ausfall darf den Request nicht killen)
-        pass
 
 
 def enqueue_export_user_data(export_id: uuid.UUID) -> None:
-    try:
+    with contextlib.suppress(Exception):
         celery_app.send_task(TASK_EXPORT_USER_DATA, args=[str(export_id)])
-    except Exception:  # noqa: BLE001
-        pass

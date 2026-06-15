@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 
 from sqlalchemy import func
 from sqlmodel import Session, select
-
-from datetime import UTC, datetime
 
 from app.core.errors import bad_request, conflict, forbidden, not_found
 from app.core.project_access import get_membership
@@ -62,7 +61,7 @@ def list_my_projects(
     rows = session.exec(
         base.order_by(Project.created_at.desc()).limit(limit).offset(offset)
     ).all()
-    return [(p, role) for p, role in rows], total
+    return list(rows), total
 
 
 def update_project(

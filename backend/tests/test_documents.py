@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
+import uuid
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select
-
-import uuid
 
 from dms_core.config import settings
 from dms_core.enums import AuditAction
