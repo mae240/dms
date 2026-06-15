@@ -133,3 +133,32 @@ def test_rewrap_unknown_version_fails() -> None:
     enc = EncryptedStorageBackend(inner, keyring={2: _RING[2]}, active_key_id=2)
     with pytest.raises(StorageError, match="Key-Version"):
         enc.rewrap("doc/v1")
+
+
+# ---- Factory-Verdrahtung ----
+
+def test_factory_wraps_when_keyring_set(monkeypatch) -> None:  # noqa: ANN001
+    import base64
+
+    from dms_core import storage as storage_mod
+    from dms_core.config import settings
+
+    storage_mod.get_storage.cache_clear()
+    key = base64.b64encode(b"\x05" * 32).decode()
+    monkeypatch.setattr(settings, "storage_encryption_keys", f"1:{key}")
+    monkeypatch.setattr(settings, "storage_active_key_id", 1)
+    backend = storage_mod.get_storage()
+    storage_mod.get_storage.cache_clear()
+    assert isinstance(backend, EncryptedStorageBackend)
+
+
+def test_factory_plain_when_no_keyring(monkeypatch) -> None:  # noqa: ANN001
+    from dms_core import storage as storage_mod
+    from dms_core.config import settings
+    from dms_core.storage.local import LocalFilesystemBackend
+
+    storage_mod.get_storage.cache_clear()
+    monkeypatch.setattr(settings, "storage_encryption_keys", "")
+    backend = storage_mod.get_storage()
+    storage_mod.get_storage.cache_clear()
+    assert isinstance(backend, LocalFilesystemBackend)
