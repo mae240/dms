@@ -77,6 +77,10 @@ def engine() -> Generator[Engine, None, None]:
     admin.dispose()
 
     eng = create_engine(_test_db_url())
+    # Extension wie in der Migration bereitstellen: create_all() erzeugt den
+    # GIN-Index ix_documents_title_trgm (gin_trgm_ops), der pg_trgm voraussetzt.
+    with eng.begin() as conn:
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
     SQLModel.metadata.drop_all(eng)
     SQLModel.metadata.create_all(eng)
     with eng.begin() as conn:

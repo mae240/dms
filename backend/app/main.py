@@ -23,6 +23,11 @@ def _add_security_headers(app: FastAPI) -> None:
         response.headers.setdefault("X-Frame-Options", "DENY")
         response.headers.setdefault("Referrer-Policy", "no-referrer")
         response.headers.setdefault("Cross-Origin-Opener-Policy", "same-origin")
+        response.headers.setdefault(
+            "Content-Security-Policy",
+            "default-src 'self'; script-src 'self'; object-src 'none'; "
+            "base-uri 'self'; frame-ancestors 'none'",
+        )
         return response
 
     app.add_middleware(BaseHTTPMiddleware, dispatch=middleware)

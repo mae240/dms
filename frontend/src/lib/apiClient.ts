@@ -107,8 +107,13 @@ export function uploadWithProgress<T>(
   form: FormData,
   onProgress?: (percent: number) => void,
   retry = true,
+  signal?: AbortSignal,
 ): Promise<T> {
   return new Promise<T>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new ApiError(0, "aborted", "Upload abgebrochen"));
+      return;
+    }
     const xhr = new XMLHttpRequest();
     xhr.open("POST", `${BASE}${path}`);
     if (accessToken) xhr.setRequestHeader("Authorization", `Bearer ${accessToken}`);
@@ -117,11 +122,21 @@ export function uploadWithProgress<T>(
         if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
       };
     }
+    const onAbort = () => xhr.abort();
+    if (signal) signal.addEventListener("abort", onAbort);
+    const cleanup = () => {
+      if (signal) signal.removeEventListener("abort", onAbort);
+    };
+    xhr.onabort = () => {
+      cleanup();
+      reject(new ApiError(0, "aborted", "Upload abgebrochen"));
+    };
     xhr.onload = () => {
+      cleanup();
       if (xhr.status === 401 && retry) {
         tryRefresh().then((ok) => {
           if (ok) {
-            uploadWithProgress<T>(path, form, onProgress, false).then(resolve, reject);
+            uploadWithProgress<T>(path, form, onProgress, false, signal).then(resolve, reject);
           } else {
             accessToken = null;
             onAuthLost?.();
@@ -141,7 +156,10 @@ export function uploadWithProgress<T>(
         reject(parseXhrError(xhr));
       }
     };
-    xhr.onerror = () => reject(new ApiError(0, "network", "Netzwerkfehler beim Upload"));
+    xhr.onerror = () => {
+      cleanup();
+      reject(new ApiError(0, "network", "Netzwerkfehler beim Upload"));
+    };
     xhr.send(form);
   });
 }

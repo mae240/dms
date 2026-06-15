@@ -7,10 +7,10 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, date, datetime, timedelta
 
-from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.core.errors import bad_request, conflict, not_found
+from app.schemas.common import paginate
 from dms_core.audit import write_audit_log
 from dms_core.config import settings
 from dms_core.enums import AuditAction, DocumentStatus, ExportStatus
@@ -157,11 +157,9 @@ def create_user(
 
 
 def list_users(session: Session, *, limit: int, offset: int) -> tuple[list[User], int]:
-    total = session.exec(select(func.count()).select_from(User)).one()
-    users = session.exec(
-        select(User).order_by(User.created_at.asc()).limit(limit).offset(offset)
-    ).all()
-    return list(users), total
+    return paginate(
+        session, select(User).order_by(User.created_at.asc()), limit=limit, offset=offset
+    )
 
 
 def list_audit_logs(
@@ -181,15 +179,12 @@ def list_audit_logs(
     if actor_user_id:
         conditions.append(AuditLog.actor_user_id == actor_user_id)
 
-    total = session.exec(select(func.count()).select_from(AuditLog).where(*conditions)).one()
-    rows = session.exec(
-        select(AuditLog)
-        .where(*conditions)
-        .order_by(AuditLog.created_at.desc())
-        .limit(limit)
-        .offset(offset)
-    ).all()
-    return list(rows), total
+    return paginate(
+        session,
+        select(AuditLog).where(*conditions).order_by(AuditLog.created_at.desc()),
+        limit=limit,
+        offset=offset,
+    )
 
 
 # ---- User-Export (Art. 15/20) ----
@@ -222,11 +217,12 @@ def create_user_export(
 
 
 def list_exports(session: Session, *, limit: int, offset: int) -> tuple[list[UserExport], int]:
-    total = session.exec(select(func.count()).select_from(UserExport)).one()
-    rows = session.exec(
-        select(UserExport).order_by(UserExport.created_at.desc()).limit(limit).offset(offset)
-    ).all()
-    return list(rows), total
+    return paginate(
+        session,
+        select(UserExport).order_by(UserExport.created_at.desc()),
+        limit=limit,
+        offset=offset,
+    )
 
 
 def get_export_or_404(session: Session, export_id: uuid.UUID) -> UserExport:

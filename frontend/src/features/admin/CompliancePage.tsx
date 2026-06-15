@@ -77,12 +77,12 @@ function RetentionTool() {
 
 function ExportsList() {
   const [offset, setOffset] = useState(0);
-  const { data, isLoading, error } = useExports(PAGE_SIZE, offset);
+  const { data, isPending, error } = useExports(PAGE_SIZE, offset);
   return (
     <div className="card">
       <h2 style={{ marginTop: 0 }}>Datenexporte</h2>
       <ErrorBanner error={error} />
-      {isLoading ? (
+      {isPending ? (
         <Loading />
       ) : !data?.items.length ? (
         <Empty>Noch keine Exporte. Erstelle einen unter „Benutzer".</Empty>

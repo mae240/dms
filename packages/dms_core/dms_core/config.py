@@ -23,6 +23,10 @@ class Settings(BaseSettings):
 
     # Datenbank
     database_url: str = "postgresql+psycopg://dms:dms_dev_password_change_me@postgres:5432/dms"
+    # Connection-Pool — auf die FastAPI-Threadpool-Groesse (40) abstimmen.
+    db_pool_size: int = 10
+    db_max_overflow: int = 20
+    db_pool_timeout: int = 30
 
     # Redis / Celery
     redis_url: str = "redis://redis:6379/0"
@@ -38,8 +42,8 @@ class Settings(BaseSettings):
     refresh_cookie_secure: bool = False
     refresh_cookie_samesite: Literal["strict", "lax", "none"] = "strict"
 
-    # Storage
-    storage_backend: Literal["local", "sftp"] = "local"
+    # Storage (SFTP noch nicht implementiert — Literal bewusst auf 'local' begrenzt)
+    storage_backend: Literal["local"] = "local"
     storage_root: str = "/data/storage"
     export_root: str = "/data/exports"
 
@@ -59,6 +63,9 @@ class Settings(BaseSettings):
 
     # Rate Limiting
     auth_rate_limit_per_minute: int = 10
+    # Proxy: X-Forwarded-For NUR vertrauen wenn hinter einem Reverse-Proxy. Dann
+    # zusaetzlich uvicorn mit --proxy-headers --forwarded-allow-ips=<proxy> betreiben.
+    trust_proxy_headers: bool = False
 
     # CORS (bei Single-Origin leer lassen)
     cors_origins: str = ""
@@ -82,6 +89,11 @@ class Settings(BaseSettings):
             raise ValueError(
                 "JWT_SECRET ist in Produktion nicht gesetzt oder unsicher. "
                 "Bitte ein starkes Geheimnis in der Umgebung setzen."
+            )
+        if self.environment == "production" and "dms_dev_password_change_me" in self.database_url:
+            raise ValueError(
+                "DATABASE_URL nutzt in Produktion das unsichere Default-Passwort. "
+                "Bitte ein starkes DB-Passwort in der Umgebung setzen."
             )
         return self
 

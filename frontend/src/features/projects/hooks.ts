@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api, uploadWithProgress } from "../../lib/apiClient";
 import { toast } from "../../lib/toast";
@@ -11,24 +11,26 @@ import type {
   ProjectDetailOut,
   ProjectOut,
   ProjectRole,
+  ProjectStatus,
   RecentDocument,
 } from "../../types/api";
 
 export const PAGE_SIZE = 25;
 
-export function useProjects(status?: DocumentStatus, limit = PAGE_SIZE, offset = 0) {
+export function useProjects(status?: ProjectStatus, limit = PAGE_SIZE, offset = 0) {
   const q = new URLSearchParams({ limit: String(limit), offset: String(offset) });
   if (status) q.set("status", status);
   return useQuery({
     queryKey: ["projects", status ?? "default", limit, offset],
     queryFn: () => api.get<Page<ProjectOut>>(`/projects?${q}`),
+    placeholderData: keepPreviousData,
   });
 }
 
 export function useUpdateProject(projectId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { name?: string; description?: string; status?: DocumentStatus }) =>
+    mutationFn: (body: { name?: string; description?: string; status?: ProjectStatus }) =>
       api.patch<ProjectOut>(`/projects/${projectId}`, body),
     onSuccess: () => {
       toast.success("Projekt aktualisiert.");
@@ -136,6 +138,7 @@ export function useDocuments(
   return useQuery({
     queryKey: ["documents", projectId, status, search.trim(), limit, offset],
     queryFn: () => api.get<Page<DocumentListItem>>(`/projects/${projectId}/documents?${q}`),
+    placeholderData: keepPreviousData,
     // Solange Versionen verarbeitet werden, regelmaessig aktualisieren.
     refetchInterval: (query) => {
       const data = query.state.data as Page<DocumentListItem> | undefined;
