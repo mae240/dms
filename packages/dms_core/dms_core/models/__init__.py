@@ -13,7 +13,7 @@ from dms_core.models.audit import AuditLog
 from dms_core.models.compliance import ProcessingActivity
 from dms_core.models.document import Document, DocumentVersion
 from dms_core.models.export import UserExport
-from dms_core.models.project import Project, ProjectMember
+from dms_core.models.project import Project, ProjectMember, RetentionRule
 from dms_core.models.user import RefreshToken, User
 
 __all__ = [
@@ -24,6 +24,7 @@ __all__ = [
     "Project",
     "ProjectMember",
     "RefreshToken",
+    "RetentionRule",
     "User",
     "UserExport",
 ]

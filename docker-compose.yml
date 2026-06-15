@@ -43,6 +43,7 @@ services:
       - ./backend:/app/backend
       - ./alembic:/app/alembic
       - ./alembic.ini:/app/alembic.ini
+      - ./scripts:/app/scripts
       - storage_data:/data/storage
       - export_data:/data/exports
     depends_on:

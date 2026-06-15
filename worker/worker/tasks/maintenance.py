@@ -9,10 +9,12 @@ from __future__ import annotations
 
 from dms_core import maintenance
 from dms_core.celery_app import (
+    TASK_AUTO_EXPIRE,
     TASK_CLEANUP_AUDIT_IP,
     TASK_CLEANUP_EXPORTS,
     TASK_EXPORT_USER_DATA,
     TASK_PURGE_DOCUMENTS,
+    TASK_REWRAP_BLOBS,
     celery_app,
 )
 from dms_core.config import settings
@@ -44,3 +46,15 @@ def cleanup_expired_exports() -> int:
 def cleanup_audit_ip() -> int:
     with session_scope() as session:
         return maintenance.cleanup_audit_ip(session, settings.audit_ip_retention_days)
+
+
+@celery_app.task(name=TASK_AUTO_EXPIRE)
+def auto_soft_delete_expired() -> int:
+    with session_scope() as session:
+        return maintenance.auto_soft_delete_expired(session)
+
+
+@celery_app.task(name=TASK_REWRAP_BLOBS)
+def rewrap_blobs() -> dict:
+    with session_scope() as session:
+        return maintenance.rewrap_blobs(session, get_storage())

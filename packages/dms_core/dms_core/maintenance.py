@@ -14,15 +14,17 @@ import json
 import uuid
 from datetime import UTC, date, datetime, timedelta
 
-from sqlalchemy import or_, update
+from sqlalchemy import and_, case, func, or_, update
+from sqlalchemy.orm import aliased
 from sqlmodel import Session, select
 
 from dms_core.audit import write_audit_log
+from dms_core.config import settings
 from dms_core.enums import AuditAction, DocumentStatus, ExportStatus
 from dms_core.models.audit import AuditLog
 from dms_core.models.document import Document, DocumentVersion
 from dms_core.models.export import UserExport
-from dms_core.models.project import ProjectMember
+from dms_core.models.project import Project, ProjectMember, RetentionRule
 from dms_core.models.user import User
 from dms_core.storage import StorageBackend, StorageError
 
@@ -89,6 +91,66 @@ def purge_deleted_documents(session: Session, storage: StorageBackend) -> int:
 
     session.flush()
     return purged
+
+
+def auto_soft_delete_expired(session: Session, *, now: datetime | None = None) -> int:
+    """Soft-deletet aktive Dokumente gemaess Retention-Regeln (Maximal-Aufbewahrung).
+
+    Aufloesung: Kategorie-Regel schlaegt Projekt-Default (category=NULL). Eine
+    Kategorie-Regel mit max_days=NULL ist 'exempt'. Respektiert legal_hold und
+    die Mindest-Aufbewahrung (retention_until). Gechunked via PURGE_BATCH.
+    """
+    now = now or datetime.now(UTC)
+    today = now.date()
+    rc = aliased(RetentionRule)  # Kategorie-spezifisch
+    rp = aliased(RetentionRule)  # Projekt-Default (category IS NULL)
+    effective = case((rc.id.is_not(None), rc.max_days), else_=rp.max_days)
+
+    purge_after = now + timedelta(days=settings.purge_grace_days)
+    # Gebatcht (LIMIT-Schleife), damit ein Rueckstau > PURGE_BATCH vollstaendig
+    # abgearbeitet wird (gleiches Muster wie purge_deleted_documents). Soft-gedeletete
+    # Dokumente verlassen status=active und werden nicht erneut selektiert -> Schleife
+    # terminiert.
+    total = 0
+    while True:
+        candidates = session.exec(
+            select(Document)
+            .join(Project, Project.id == Document.project_id)
+            .outerjoin(
+                rc, and_(rc.project_id == Document.project_id, rc.category == Document.category)
+            )
+            .outerjoin(rp, and_(rp.project_id == Document.project_id, rp.category.is_(None)))
+            .where(
+                Document.status == DocumentStatus.active,
+                Document.legal_hold.is_(False),
+                effective.is_not(None),
+                # PG make_interval(years, months, weeks, days)
+                Document.created_at < now - func.make_interval(0, 0, 0, effective),
+                or_(Document.retention_until.is_(None), Document.retention_until <= today),
+            )
+            .limit(PURGE_BATCH)
+        ).all()
+        if not candidates:
+            break
+        for doc in candidates:
+            doc.status = DocumentStatus.deleted
+            doc.deleted_at = now
+            doc.purge_after = purge_after
+            session.add(doc)
+            write_audit_log(
+                session,
+                action=AuditAction.document_auto_expired,
+                entity_type="document",
+                actor_user_id=None,
+                entity_id=doc.id,
+                project_id=doc.project_id,
+                metadata={"reason": "retention_max"},
+            )
+        session.flush()
+        total += len(candidates)
+        if len(candidates) < PURGE_BATCH:
+            break
+    return total
 
 
 def build_export_payload(session: Session, subject_id: uuid.UUID) -> dict:
@@ -210,6 +272,27 @@ def cleanup_expired_exports(session: Session, export_storage: StorageBackend) ->
         if len(expired) < PURGE_BATCH:
             break
     return total
+
+
+def rewrap_blobs(session: Session, storage: object) -> dict[str, int]:
+    """Schluesselt alle Blobs auf die aktive Key-Version um. `storage` muss
+    rewrap(key)->bool unterstuetzen (EncryptedStorageBackend). Idempotent.
+
+    Duck-typed auf rewrap: ein nicht-verschluesselndes Backend ist ein No-Op,
+    damit dms_core nicht hart von EncryptedStorageBackend abhaengt."""
+    if not hasattr(storage, "rewrap"):
+        return {"rewrapped": 0, "skipped": 0, "errors": 0}
+    keys = [v.storage_key for v in session.exec(select(DocumentVersion)).all()]
+    rewrapped = skipped = errors = 0
+    for key in keys:
+        try:
+            if storage.rewrap(key):
+                rewrapped += 1
+            else:
+                skipped += 1
+        except StorageError:
+            errors += 1  # einzelner Blob blockiert die Rotation nicht
+    return {"rewrapped": rewrapped, "skipped": skipped, "errors": errors}
 
 
 def cleanup_audit_ip(session: Session, retention_days: int) -> int:

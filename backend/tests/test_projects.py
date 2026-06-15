@@ -189,6 +189,62 @@ def test_update_and_archive_project(client: TestClient, db_session: Session) -> 
     assert pid in [p["id"] for p in archived["items"]]
 
 
+def test_set_list_and_delete_retention_rule(client: TestClient, db_session: Session) -> None:
+    owner = make_user(db_session, "owner-ret@example.com")
+    headers = bearer(owner)
+    pid = _create_project(client, headers)
+
+    # setzen (Projekt-Default)
+    res = client.put(
+        f"/api/projects/{pid}/retention-rules",
+        json={"category": None, "max_days": 365},
+        headers=headers,
+    )
+    assert res.status_code == 200, res.text
+    # Kategorie-Exempt (nie loeschen)
+    res = client.put(
+        f"/api/projects/{pid}/retention-rules",
+        json={"category": "Rechnung", "max_days": None},
+        headers=headers,
+    )
+    assert res.status_code == 200, res.text
+    # listen
+    rules = client.get(
+        f"/api/projects/{pid}/retention-rules", headers=headers
+    ).json()
+    assert {r["category"] for r in rules} == {None, "Rechnung"}
+    # AUS-Schalter: Projekt-Default loeschen
+    res = client.request(
+        "DELETE",
+        f"/api/projects/{pid}/retention-rules",
+        json={"category": None},
+        headers=headers,
+    )
+    assert res.status_code == 204
+    rules = client.get(
+        f"/api/projects/{pid}/retention-rules", headers=headers
+    ).json()
+    assert {r["category"] for r in rules} == {"Rechnung"}
+
+
+def test_retention_rule_requires_admin(client: TestClient, db_session: Session) -> None:
+    owner = make_user(db_session, "owner-ret2@example.com")
+    viewer = make_user(db_session, "viewer-ret2@example.com")
+    pid = _create_project(client, bearer(owner))
+    client.post(
+        f"/api/projects/{pid}/members",
+        json={"email": "viewer-ret2@example.com", "role": "viewer"},
+        headers=bearer(owner),
+    )
+
+    res = client.put(
+        f"/api/projects/{pid}/retention-rules",
+        json={"category": None, "max_days": 365},
+        headers=bearer(viewer),
+    )
+    assert res.status_code == 403
+
+
 def test_soft_delete_and_restore_project(client: TestClient, db_session: Session) -> None:
     owner = make_user(db_session, "owner7@example.com")
     member_admin = make_user(db_session, "admin7@example.com")

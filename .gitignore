@@ -12,9 +12,9 @@ __pycache__/
 .env.*
 !.env.example
 
-# Storage (lokale Dateien NIE committen)
+# Storage (lokale Laufzeit-Dateien NIE committen)
 /data/
-storage/
+/storage/
 *.local
 
 # Node / Frontend

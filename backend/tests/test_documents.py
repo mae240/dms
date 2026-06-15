@@ -144,3 +144,18 @@ def test_audit_records_document_actions(client: TestClient, db_session: Session)
         AuditAction.document_version_created,
         AuditAction.document_downloaded,
     } <= actions
+
+
+def test_upload_sets_default_retention(client: TestClient, db_session: Session):
+    from datetime import date, timedelta
+
+    pid, _owner, editor, *_ = _project_with_roles(client, db_session)
+    res = client.post(
+        f"/api/projects/{pid}/documents",
+        data={"title": "Vertrag"},
+        files={"file": ("v.txt", b"inhalt", "text/plain")},
+        headers=bearer(editor),
+    )
+    assert res.status_code == 201, res.text
+    expected = (date.today() + timedelta(days=settings.default_retention_days)).isoformat()
+    assert res.json()["retention_until"] == expected

@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 COMPOSE := docker compose
 
-.PHONY: help up down build logs ps migrate revision seed test lint fmt shell-backend shell-db
+.PHONY: help up down build logs ps migrate revision seed test lint fmt shell-backend shell-db gen-storage-key
 
 help: ## Zeigt diese Hilfe
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -50,3 +50,6 @@ shell-backend: ## Shell im Backend-Container
 
 shell-db: ## psql in der Datenbank
 	$(COMPOSE) exec postgres psql -U $${POSTGRES_USER:-dms} -d $${POSTGRES_DB:-dms}
+
+gen-storage-key: ## Erzeugt einen Storage-Master-Key (Base64, 32 Byte)
+	@python -c "import os,base64;print(base64.b64encode(os.urandom(32)).decode())"

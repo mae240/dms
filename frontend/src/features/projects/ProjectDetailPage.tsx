@@ -14,12 +14,15 @@ import {
   useAddMember,
   useChangeMemberRole,
   useDeleteProject,
+  useDeleteRetentionRule,
   useDocuments,
   useProject,
   useRemoveMember,
   useRestoreDocumentInProject,
+  useRetentionRules,
   useUpdateProject,
   useUploadDocument,
+  useUpsertRetentionRule,
 } from "./hooks";
 
 export function ProjectDetailPage() {
@@ -46,6 +49,7 @@ export function ProjectDetailPage() {
       {p.description && <p className="muted">{p.description}</p>}
 
       {canManage && <ProjectSettings project={p} />}
+      {canManage && <RetentionRulesCard projectId={projectId} />}
       <Members projectId={projectId} members={p.members} canManage={canManage} />
       {canUpload && <UploadCard projectId={projectId} />}
       <DocumentsCard projectId={projectId} />
@@ -115,6 +119,119 @@ function ProjectSettings({ project }: { project: ProjectDetailOut }) {
           )}
         </div>
       </form>
+    </div>
+  );
+}
+
+function RetentionRulesCard({ projectId }: { projectId: string }) {
+  const { data, isPending, error } = useRetentionRules(projectId);
+  const upsert = useUpsertRetentionRule(projectId);
+  const remove = useDeleteRetentionRule(projectId);
+  const [showForm, setShowForm] = useState(false);
+  const [category, setCategory] = useState("");
+  const [maxDays, setMaxDays] = useState("");
+
+  async function onAdd(e: React.FormEvent) {
+    e.preventDefault();
+    await upsert.mutateAsync({
+      category: category.trim() || null,
+      max_days: maxDays === "" ? null : Number(maxDays),
+    });
+    setCategory("");
+    setMaxDays("");
+    setShowForm(false);
+  }
+
+  async function onRemove(cat: string | null) {
+    const ok = await confirmDialog({
+      title: "Regel entfernen",
+      message:
+        cat === null
+          ? "Projekt-Default entfernen? Damit wird die automatische Loeschung fuer dieses Projekt deaktiviert."
+          : `Aufbewahrungsregel fuer Kategorie „${cat}" entfernen?`,
+      confirmLabel: "Entfernen",
+      danger: true,
+    });
+    if (ok) await remove.mutateAsync(cat);
+  }
+
+  return (
+    <div className="card">
+      <h2 style={{ marginTop: 0 }}>Aufbewahrung</h2>
+      <p className="muted" style={{ fontSize: "0.8rem", marginTop: 0 }}>
+        Regeln bestimmen, nach wie vielen Tagen Dokumente automatisch geloescht werden. Kategorie
+        leer = Projekt-Default; Max-Tage „nie" = von der Loeschung ausgenommen.
+      </p>
+      <ErrorBanner error={error || upsert.error || remove.error} />
+      {isPending ? (
+        <Loading />
+      ) : !data?.length ? (
+        <Empty>Keine Aufbewahrungsregeln. Automatische Loeschung ist deaktiviert.</Empty>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th>Kategorie</th>
+              <th>Max-Tage</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.map((r) => (
+              <tr key={r.id}>
+                <td>{r.category ?? "(Projekt-Default)"}</td>
+                <td>{r.max_days === null ? "nie" : r.max_days}</td>
+                <td>
+                  <button
+                    className="small danger"
+                    disabled={remove.isPending}
+                    onClick={() => onRemove(r.category)}
+                  >
+                    Entfernen
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {showForm ? (
+        <form className="row wrap" style={{ marginTop: "1rem" }} onSubmit={onAdd}>
+          <input
+            style={{ flex: 2, minWidth: 180 }}
+            placeholder="Kategorie (leer = Projekt-Default)"
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+          />
+          <input
+            style={{ flex: 1, minWidth: 120 }}
+            type="number"
+            min={1}
+            placeholder="Max-Tage (leer = nie)"
+            value={maxDays}
+            onChange={(e) => setMaxDays(e.target.value)}
+          />
+          <button className="primary" type="submit" disabled={upsert.isPending}>
+            Speichern
+          </button>
+          <button
+            type="button"
+            disabled={upsert.isPending}
+            onClick={() => {
+              setShowForm(false);
+              setCategory("");
+              setMaxDays("");
+            }}
+          >
+            Abbrechen
+          </button>
+        </form>
+      ) : (
+        <button className="small" style={{ marginTop: "1rem" }} onClick={() => setShowForm(true)}>
+          + Regel
+        </button>
+      )}
     </div>
   );
 }
