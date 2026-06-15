@@ -503,7 +503,7 @@ function DocumentsCard({ projectId }: { projectId: string }) {
                       </td>
                       <td>
                         <Link to={`/documents/${d.id}`}>{d.title}</Link>{" "}
-                        {d.legal_hold && <span className="badge failed">Hold</span>}{" "}
+                        {d.legal_hold && <Badge variant="danger">Hold</Badge>}{" "}
                         {d.retention_until && (
                           <span className="badge" title="Aufbewahrung bis">
                             ⏲ {d.retention_until}
