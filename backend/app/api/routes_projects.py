@@ -19,6 +19,7 @@ from app.schemas.project import (
     ProjectOut,
     ProjectUpdate,
 )
+from app.schemas.retention import RetentionRuleDelete, RetentionRuleIn, RetentionRuleOut
 from app.services import project_service
 from dms_core.enums import ProjectRole
 
@@ -172,6 +173,46 @@ def remove_member(
         session,
         project_id=ctx.project.id,
         target_user_id=user_id,
+        actor=ctx.user,
+        ip=get_client_ip(request),
+    )
+    session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.put("/{project_id}/retention-rules", response_model=RetentionRuleOut)
+def put_retention_rule(
+    body: RetentionRuleIn, ctx: AdminCtx, request: Request, session: SessionDep
+) -> RetentionRuleOut:
+    rule = project_service.upsert_retention_rule(
+        session,
+        project=ctx.project,
+        category=body.category,
+        max_days=body.max_days,
+        actor=ctx.user,
+        ip=get_client_ip(request),
+    )
+    session.commit()
+    session.refresh(rule)
+    return RetentionRuleOut.model_validate(rule)
+
+
+@router.get("/{project_id}/retention-rules", response_model=list[RetentionRuleOut])
+def get_retention_rules(ctx: AdminCtx, session: SessionDep) -> list[RetentionRuleOut]:
+    return [
+        RetentionRuleOut.model_validate(r)
+        for r in project_service.list_retention_rules(session, project=ctx.project)
+    ]
+
+
+@router.delete("/{project_id}/retention-rules", status_code=status.HTTP_204_NO_CONTENT)
+def delete_retention_rule(
+    body: RetentionRuleDelete, ctx: AdminCtx, request: Request, session: SessionDep
+) -> Response:
+    project_service.delete_retention_rule(
+        session,
+        project=ctx.project,
+        category=body.category,
         actor=ctx.user,
         ip=get_client_ip(request),
     )
