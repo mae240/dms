@@ -117,7 +117,6 @@ export function DocumentDetailPage() {
                 Neue Version
               </button>
             )}
-            {isSuperadmin && <LegalHoldButton doc={d} />}
           </>
         }
       />
@@ -127,7 +126,7 @@ export function DocumentDetailPage() {
         style={{ alignItems: "stretch", gap: 18, marginBottom: 18 }}
       >
         <HeroCard doc={d} />
-        <ComplianceCard doc={d} isSuperadmin={isSuperadmin} />
+        <ComplianceCard key={d.retention_until ?? "none"} doc={d} isSuperadmin={isSuperadmin} />
       </div>
 
       <Card>
