@@ -1,84 +1,80 @@
-# G-3: Retention-Policy & Auto-Purge Implementation Plan
+# G-3: Retention-Policy & Auto-Purge (mit Kategorie-Regeln) Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Dokumente bekommen eine angewandte Aufbewahrungs-Policy: eine Default-**Mindest**-Aufbewahrung beim Upload und eine optionale, pro Projekt konfigurierbare **Maximal**-Aufbewahrung, nach der nicht mehr benötigte Dokumente automatisch entfernt werden (DSGVO Art. 5(1e) Speicherbegrenzung).
+**Goal:** Dokumente bekommen eine angewandte Aufbewahrungs-Policy: eine Default-**Mindest**-Aufbewahrung beim Upload und eine pro Projekt **und pro Kategorie** konfigurierbare **Maximal**-Aufbewahrung, nach der nicht mehr benötigte Dokumente automatisch entfernt werden (DSGVO Art. 5(1e)). Inklusive sauberem **Aus-Schalter**.
 
-**Architecture:** Zwei klar getrennte Konzepte. (1) `retention_until` bleibt die rechtliche **Mindest**-Aufbewahrung (blockt Löschung) — wird beim Upload mit `default_retention_days` vorbelegt. (2) Neues `Project.retention_max_days` (nullable, `None` = aus) ist die **Maximal**-Frist; ein Beat-gesteuerter Maintenance-Task soft-deletet abgelaufene Dokumente, die bestehende Purge-Logik räumt sie nach der Grace-Period endgültig ab. Beide respektieren `legal_hold` und die Mindest-Aufbewahrung.
+**Architecture:** Zwei getrennte Konzepte. (1) `retention_until` = rechtliche **Mindest**-Aufbewahrung (blockt Löschung), beim Upload mit `default_retention_days` vorbelegt, pro Dokument überschreibbar. (2) Eine neue Tabelle `retention_rules(project_id, category, max_days)` definiert die **Maximal**-Aufbewahrung. Auflösung pro Dokument: **spezifischste Regel gewinnt** — Regel für (Projekt+Kategorie) schlägt Projekt-Default (Kategorie = NULL); existiert keine Regel → kein Auto-Purge (default aus). `max_days = NULL` in einer Regel = **„nie löschen" (exempt)**. Der **Aus-Schalter** ist das Löschen der Regel; das **Kategorie-Exempt** ist eine Regel mit `max_days = NULL`. Ein Beat-Task soft-deletet abgelaufene Dokumente; die bestehende Purge-Logik räumt nach der Grace-Period ab. Alles respektiert `legal_hold` und die Mindest-Aufbewahrung.
 
-**Tech Stack:** FastAPI, sync SQLModel/SQLAlchemy 2.0, Alembic, Celery-Beat, PostgreSQL (`make_interval`), pytest (`backend/tests` mit DB-Fixture).
+**Tech Stack:** FastAPI, sync SQLModel/SQLAlchemy 2.0 (`case`, `aliased`, `make_interval`), Alembic, Celery-Beat, **PostgreSQL 15+** (`NULLS NOT DISTINCT` für die Projekt-Default-Regel), pytest mit DB-Fixture.
 
-**Invarianten:** Response-Shapes nur additiv erweitern; `purge_deleted_documents` (bestehend) bleibt die einzige Stelle, die Blobs/Zeilen hart löscht; Auto-Soft-Delete fasst nur `status=active`-Dokumente an.
+**Invarianten:** Response-Shapes nur additiv; `purge_deleted_documents` bleibt die einzige hart-löschende Stelle; Auto-Soft-Delete fasst nur `status=active` an; Default-Auto-Purge = aus.
 
 ---
 
 ## File Structure
 
-- **Modify** `packages/dms_core/dms_core/enums.py` — neue `AuditAction.document_auto_expired` (action ist plain `String`, **keine** CHECK-Migration nötig).
-- **Modify** `packages/dms_core/dms_core/models/project.py` — Spalte `retention_max_days: int | None`.
-- **Create** Alembic-Migration — Spalte `projects.retention_max_days` + Backfill `documents.retention_until`.
+- **Modify** `packages/dms_core/dms_core/enums.py` — `AuditAction.document_auto_expired` (action ist plain `String`, keine CHECK-Migration nötig).
+- **Modify** `packages/dms_core/dms_core/models/project.py` — neues Modell `RetentionRule`.
+- **Create** Alembic-Migration — Tabelle `retention_rules` + Backfill `documents.retention_until`.
 - **Modify** `backend/app/services/document_service.py` — Default-Mindest-Retention beim Upload.
-- **Modify** `packages/dms_core/dms_core/maintenance.py` — `auto_soft_delete_expired(...)`.
-- **Modify** `packages/dms_core/dms_core/celery_app.py` + `worker/worker/tasks/maintenance.py` — Task + Beat-Schedule.
-- **Modify** `backend/app/schemas/project.py`, `backend/app/services/project_service.py`, `backend/app/api/routes_projects.py` — `retention_max_days` über die Projekt-API setzbar.
-- **Modify** `frontend/src/types/api.ts`, `frontend/src/features/projects/*`, `frontend/src/features/admin/AuditLogsPage.tsx` — UI-Feld + neue Audit-Aktion (optional, Task 7).
+- **Modify** `packages/dms_core/dms_core/maintenance.py` — `auto_soft_delete_expired(...)` mit Regel-Auflösung.
+- **Modify** `packages/dms_core/dms_core/celery_app.py` + `worker/worker/tasks/maintenance.py` — Beat-Task.
+- **Create** `backend/app/schemas/retention.py`; **Modify** `backend/app/services/project_service.py`, `backend/app/api/routes_projects.py` — Retention-Rules-CRUD (setzen / **löschen=aus** / listen).
+- **Modify** `frontend/src/types/api.ts`, `frontend/src/features/projects/*`, `frontend/src/features/admin/AuditLogsPage.tsx` — Regel-Verwaltung + neue Audit-Aktion (optional).
 
 ---
 
 ### Task 1: Audit-Aktion `document.auto_expired`
 
-**Files:**
-- Modify: `packages/dms_core/dms_core/enums.py:77` (nach `document_purged`)
+**Files:** Modify `packages/dms_core/dms_core/enums.py`
 
-- [ ] **Step 1: Enum-Wert ergänzen**
-
-In `AuditAction` nach `document_purged = "document.purged"` einfügen:
-
-```python
-    document_auto_expired = "document.auto_expired"
-```
-
-- [ ] **Step 2: Import-Smoke**
-
-Run: `docker compose run --rm --no-deps backend python -c "from dms_core.enums import AuditAction; print(AuditAction.document_auto_expired.value)"`
-Expected: `document.auto_expired`
-
-- [ ] **Step 3: Commit**
-
-```bash
-git add packages/dms_core/dms_core/enums.py
-git commit -m "G-3: Audit-Aktion document.auto_expired"
-```
+- [ ] **Step 1:** In `AuditAction` nach `document_purged` einfügen: `document_auto_expired = "document.auto_expired"`
+- [ ] **Step 2:** Run: `docker compose run --rm --no-deps backend python -c "from dms_core.enums import AuditAction; print(AuditAction.document_auto_expired.value)"` → Expected: `document.auto_expired`
+- [ ] **Step 3:** Commit: `git add packages/dms_core/dms_core/enums.py && git commit -m "G-3: Audit-Aktion document.auto_expired"`
 
 ---
 
-### Task 2: `Project.retention_max_days` Modell + Migration
+### Task 2: `RetentionRule`-Modell + Migration
 
-**Files:**
-- Modify: `packages/dms_core/dms_core/models/project.py:39` (nach `updated_at`)
-- Create: `alembic/versions/<rev>_retention_policy.py`
+**Files:** Modify `packages/dms_core/dms_core/models/project.py`; Create Migration
 
-- [ ] **Step 1: Modell-Spalte ergänzen**
+Semantik der Tabelle:
+- `(project_id, category=NULL, max_days=N)` → Projekt-Default: alle Kategorien ohne eigene Regel werden nach N Tagen gelöscht.
+- `(project_id, category="Rechnung", max_days=NULL)` → „Rechnung" ist **exempt** (nie auto-löschen), auch wenn der Projekt-Default existiert.
+- `(project_id, category="Entwurf", max_days=30)` → „Entwurf" nach 30 Tagen.
+- Keine Regel für ein Dokument → kein Auto-Purge.
 
-In `Project` nach `updated_at` einfügen:
+- [ ] **Step 1: Modell** in `project.py` ergänzen (`Integer` zum sqlalchemy-Import hinzufügen):
 
 ```python
-    # Maximal-Aufbewahrung (Art. 5(1e)). None = Auto-Purge fuer dieses Projekt AUS.
-    retention_max_days: int | None = Field(
-        default=None, sa_column=Column(Integer(), nullable=True)
+class RetentionRule(SQLModel, table=True):
+    """Maximal-Aufbewahrung pro Projekt (+ optional Kategorie). Art. 5(1e).
+
+    category = NULL  -> Projekt-Default (gilt fuer alle Kategorien ohne eigene Regel)
+    max_days = NULL  -> exempt (nie automatisch loeschen)
+    Aufloesung: spezifischste Regel (Projekt+Kategorie) schlaegt Projekt-Default.
+    """
+
+    __tablename__ = "retention_rules"
+    __table_args__ = (
+        UniqueConstraint(
+            "project_id", "category", name="retention_rule_scope", postgresql_nulls_not_distinct=True
+        ),
     )
+
+    id: uuid.UUID = pk_field()
+    project_id: uuid.UUID = fk_uuid("projects.id", nullable=False, ondelete="CASCADE", index=True)
+    category: str | None = Field(default=None, sa_column=Column(String(100), nullable=True))
+    max_days: int | None = Field(default=None, sa_column=Column(Integer(), nullable=True))
+    created_at: datetime = created_at_field()
 ```
 
-`Integer` zum bestehenden `from sqlalchemy import ...`-Block in `project.py` hinzufügen.
+(`Integer` zum `from sqlalchemy import ...`-Block ergänzen.)
 
-- [ ] **Step 2: Migration erzeugen (als Host-User)**
+- [ ] **Step 2: Migration erzeugen:** `docker compose run --rm --user "$(id -u):$(id -g)" backend alembic revision --autogenerate -m "retention rules"` → erzeugt `create_table("retention_rules", ...)`.
 
-Run: `docker compose run --rm --user "$(id -u):$(id -g)" backend alembic revision --autogenerate -m "retention policy"`
-Expected: neue Datei in `alembic/versions/` mit `op.add_column("projects", sa.Column("retention_max_days", sa.Integer(), nullable=True))`.
-
-- [ ] **Step 3: Backfill in die Migration eintragen**
-
-In der erzeugten Migration **am Ende von `upgrade()`** ergänzen (Default-Mindest-Retention für Bestand, abgeleitet aus `created_at`):
+- [ ] **Step 3: NULLS-NOT-DISTINCT + Backfill prüfen/ergänzen.** Autogenerate setzt `postgresql_nulls_not_distinct` evtl. nicht in den `UniqueConstraint` — sicherstellen, dass die Constraint in der Migration `postgresql_nulls_not_distinct=True` hat (sonst sind mehrere Projekt-Default-Zeilen pro Projekt möglich). Am Ende von `upgrade()` den Mindest-Retention-Backfill ergänzen:
 
 ```python
     from dms_core.config import settings
@@ -87,39 +83,23 @@ In der erzeugten Migration **am Ende von `upgrade()`** ergänzen (Default-Mindes
     if days > 0:
         op.execute(
             sa.text(
-                "UPDATE documents "
-                "SET retention_until = (created_at AT TIME ZONE 'UTC')::date "
-                "    + (:days || ' days')::interval "
+                "UPDATE documents SET retention_until = "
+                "(created_at AT TIME ZONE 'UTC')::date + (:days || ' days')::interval "
                 "WHERE retention_until IS NULL"
             ).bindparams(days=days)
         )
 ```
 
-`downgrade()` muss `retention_max_days` wieder droppen (autogenerate erzeugt das). Der Backfill ist Daten-only und braucht kein Downgrade.
-
-- [ ] **Step 4: Migration anwenden + Drift-Check**
-
-Run: `make migrate && make check-migrations`
-Expected: Upgrade läuft; `check-migrations` → „No new upgrade operations detected." (Modell ↔ Migration synchron.)
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add packages/dms_core/dms_core/models/project.py alembic/versions/
-git commit -m "G-3: projects.retention_max_days + Backfill documents.retention_until"
-```
+- [ ] **Step 4:** Run: `make migrate && make check-migrations` → Expected: Upgrade ok; „No new upgrade operations detected." Falls Drift wegen `nulls_not_distinct`: Constraint in Modell `__table_args__` und Migration identisch halten.
+- [ ] **Step 5:** Commit: `git add packages/dms_core/dms_core/models/project.py alembic/versions/ && git commit -m "G-3: retention_rules-Tabelle + retention_until-Backfill"`
 
 ---
 
 ### Task 3: Default-Mindest-Retention beim Upload
 
-**Files:**
-- Modify: `backend/app/services/document_service.py` (Imports + `create_document_with_version`)
-- Test: `backend/tests/test_documents.py`
+**Files:** Modify `backend/app/services/document_service.py`; Test `backend/tests/test_documents.py`
 
-- [ ] **Step 1: Failing test schreiben**
-
-In `backend/tests/test_documents.py` ergänzen (nutzt die vorhandenen Fixtures/Helfer der Datei — Upload als Editor, dann Detail prüfen):
+- [ ] **Step 1: Failing test** in `test_documents.py`:
 
 ```python
 def test_upload_sets_default_retention(client, editor_headers, project_id):  # noqa: ANN001
@@ -138,22 +118,9 @@ def test_upload_sets_default_retention(client, editor_headers, project_id):  # n
     assert res.json()["retention_until"] == expected
 ```
 
-(Falls die Fixture-Namen in der Datei abweichen, die dort etablierten verwenden — Muster aus den bestehenden Upload-Tests übernehmen.)
+- [ ] **Step 2:** Run: `... pytest tests/test_documents.py::test_upload_sets_default_retention -q` → Expected: FAIL.
 
-- [ ] **Step 2: Test laufen lassen (muss fehlschlagen)**
-
-Run: `docker compose run --rm -w /app/backend backend pytest tests/test_documents.py::test_upload_sets_default_retention -q`
-Expected: FAIL (`retention_until` ist `None`).
-
-- [ ] **Step 3: Default setzen**
-
-In `document_service.py` Imports ergänzen:
-
-```python
-from datetime import date, timedelta
-```
-
-In `create_document_with_version` beim Anlegen des `Document` `retention_until` setzen:
+- [ ] **Step 3:** In `document_service.py` `from datetime import date, timedelta` ergänzen; in `create_document_with_version` beim `Document(...)` setzen:
 
 ```python
     retention_until = (
@@ -173,132 +140,119 @@ In `create_document_with_version` beim Anlegen des `Document` `retention_until` 
     )
 ```
 
-- [ ] **Step 4: Test laufen lassen (muss bestehen)**
-
-Run: `docker compose run --rm -w /app/backend backend pytest tests/test_documents.py -q`
-Expected: PASS (neuer Test + bestehende Upload-Tests).
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add backend/app/services/document_service.py backend/tests/test_documents.py
-git commit -m "G-3: Default-Mindest-Retention beim Upload"
-```
+- [ ] **Step 4:** Run: `... pytest tests/test_documents.py -q` → Expected: PASS.
+- [ ] **Step 5:** Commit: `git add backend/app/services/document_service.py backend/tests/test_documents.py && git commit -m "G-3: Default-Mindest-Retention beim Upload"`
 
 ---
 
-### Task 4: Auto-Soft-Delete-Logik (Maintenance-Kern)
+### Task 4: Auto-Soft-Delete mit Regel-Auflösung (Maintenance-Kern)
 
-**Files:**
-- Modify: `packages/dms_core/dms_core/maintenance.py` (Import `Project`; neue Funktion)
-- Test: `backend/tests/test_compliance.py`
+**Files:** Modify `packages/dms_core/dms_core/maintenance.py`; Test `backend/tests/test_compliance.py`
 
-- [ ] **Step 1: Failing tests schreiben**
+Effektive Maximal-Frist pro Dokument (SQL): `CASE WHEN <Kategorie-Regel existiert> THEN <ihre max_days> ELSE <Projekt-Default max_days> END`. Eine Kategorie-Regel überschreibt den Default **auch wenn ihr `max_days = NULL`** (exempt). Eligible = effektive Frist ist nicht NULL **und** Alter überschritten **und** legal_hold falsch **und** Mindest-Aufbewahrung abgelaufen/leer.
 
-In `backend/tests/test_compliance.py` ergänzen (nutzt `db_session` + die vorhandenen Factories für User/Projekt/Dokument; Muster aus bestehenden Compliance-Tests übernehmen):
+- [ ] **Step 1: Failing tests** in `test_compliance.py` (Helfer `_project_with_document` aus Task-4-Step-1, der Projekt+Dokument mit Alter anlegt; Factories der Datei wiederverwenden):
 
 ```python
-def test_auto_expire_off_by_default(db_session):  # noqa: ANN001
+def _rule(session, project, category, max_days):  # noqa: ANN001
+    from dms_core.models.project import RetentionRule
+    r = RetentionRule(project_id=project.id, category=category, max_days=max_days)
+    session.add(r)
+    session.flush()
+    return r
+
+
+def test_auto_expire_off_when_no_rule(db_session):  # noqa: ANN001
     from dms_core import maintenance
-    # Projekt ohne retention_max_days + altes Dokument -> nichts passiert.
-    project, doc = _project_with_document(db_session, age_days=10_000)
+    _, doc = _project_with_document(db_session, age_days=10_000)
     assert maintenance.auto_soft_delete_expired(db_session) == 0
     db_session.refresh(doc)
     assert doc.status == "active"
 
 
-def test_auto_expire_soft_deletes_old_document(db_session):  # noqa: ANN001
+def test_auto_expire_project_default(db_session):  # noqa: ANN001
     from dms_core import maintenance
     project, doc = _project_with_document(db_session, age_days=400)
-    project.retention_max_days = 365
-    doc.retention_until = None  # keine Mindest-Aufbewahrung im Weg
-    db_session.add_all([project, doc])
-    db_session.flush()
+    doc.retention_until = None
+    db_session.add(doc)
+    _rule(db_session, project, None, 365)  # Projekt-Default
     assert maintenance.auto_soft_delete_expired(db_session) == 1
     db_session.refresh(doc)
-    assert doc.status == "deleted"
-    assert doc.purge_after is not None
+    assert doc.status == "deleted" and doc.purge_after is not None
 
 
-def test_auto_expire_respects_legal_hold(db_session):  # noqa: ANN001
+def test_category_rule_overrides_default(db_session):  # noqa: ANN001
     from dms_core import maintenance
-    project, doc = _project_with_document(db_session, age_days=400)
-    project.retention_max_days = 365
-    doc.legal_hold = True
-    db_session.add_all([project, doc])
-    db_session.flush()
+    project, doc = _project_with_document(db_session, age_days=400, category="Rechnung")
+    doc.retention_until = None
+    db_session.add(doc)
+    _rule(db_session, project, None, 365)          # Default: loeschen nach 365
+    _rule(db_session, project, "Rechnung", None)   # aber Rechnung = exempt
     assert maintenance.auto_soft_delete_expired(db_session) == 0
+    db_session.refresh(doc)
+    assert doc.status == "active"
 
 
-def test_auto_expire_respects_min_retention(db_session):  # noqa: ANN001
+def test_category_rule_shorter_than_default(db_session):  # noqa: ANN001
+    from dms_core import maintenance
+    project, doc = _project_with_document(db_session, age_days=40, category="Entwurf")
+    doc.retention_until = None
+    db_session.add(doc)
+    _rule(db_session, project, "Entwurf", 30)  # Entwurf schon nach 30 Tagen weg
+    assert maintenance.auto_soft_delete_expired(db_session) == 1
+
+
+def test_auto_expire_respects_legal_hold_and_min_retention(db_session):  # noqa: ANN001
     from datetime import date, timedelta
 
     from dms_core import maintenance
     project, doc = _project_with_document(db_session, age_days=400)
-    project.retention_max_days = 365
+    _rule(db_session, project, None, 365)
+    doc.legal_hold = True
+    db_session.add(doc)
+    assert maintenance.auto_soft_delete_expired(db_session) == 0
+    doc.legal_hold = False
     doc.retention_until = date.today() + timedelta(days=30)  # Mindest-Aufbewahrung laeuft noch
-    db_session.add_all([project, doc])
-    db_session.flush()
+    db_session.add(doc)
     assert maintenance.auto_soft_delete_expired(db_session) == 0
 ```
 
-Dazu einen kleinen Helfer am Anfang der Testdatei (oder in `factories.py`), der ein Projekt + ein Dokument mit gegebenem Alter anlegt:
+- [ ] **Step 2:** Run: `... pytest tests/test_compliance.py -q -k "auto_expire or category"` → Expected: FAIL.
 
-```python
-def _project_with_document(session, *, age_days: int):  # noqa: ANN001
-    from datetime import UTC, datetime, timedelta
-
-    from tests.factories import make_document, make_project, make_user  # vorhandene Factories
-    user = make_user(session)
-    project = make_project(session, owner=user)
-    doc = make_document(session, project=project, author=user)
-    doc.created_at = datetime.now(UTC) - timedelta(days=age_days)
-    session.add(doc)
-    session.flush()
-    return project, doc
-```
-
-(Falls `factories.py` keine passenden Helfer hat: die in den bestehenden Compliance-Tests genutzte Anlage-Routine wiederverwenden.)
-
-- [ ] **Step 2: Tests laufen lassen (müssen fehlschlagen)**
-
-Run: `docker compose run --rm -w /app/backend backend pytest tests/test_compliance.py -q -k auto_expire`
-Expected: FAIL (`AttributeError: module ... has no attribute 'auto_soft_delete_expired'`).
-
-- [ ] **Step 3: Funktion implementieren**
-
-In `maintenance.py` `Project` importieren (zum bestehenden Models-Import-Block) und ergänzen:
+- [ ] **Step 3: Funktion** in `maintenance.py` (Imports ergänzen: `from sqlalchemy import case`, `from sqlalchemy.orm import aliased`, `from dms_core.models.project import Project, RetentionRule`; `func`/`or_`/`and_` ggf. ergänzen):
 
 ```python
 def auto_soft_delete_expired(session: Session, *, now: datetime | None = None) -> int:
-    """Soft-deletet aktive Dokumente, deren Projekt eine Maximal-Aufbewahrung
-    (Project.retention_max_days) hat und deren Alter sie ueberschreitet.
+    """Soft-deletet aktive Dokumente gemaess Retention-Regeln (Maximal-Aufbewahrung).
 
-    Respektiert legal_hold und die Mindest-Aufbewahrung (retention_until). Der
-    endgueltige Purge laeuft danach ueber purge_deleted_documents (Grace-Period).
-    Gechunked via PURGE_BATCH.
+    Aufloesung: Kategorie-Regel schlaegt Projekt-Default (category=NULL). Eine
+    Kategorie-Regel mit max_days=NULL ist 'exempt'. Respektiert legal_hold und
+    die Mindest-Aufbewahrung (retention_until). Gechunked via PURGE_BATCH.
     """
     now = now or datetime.now(UTC)
     today = now.date()
+    rc = aliased(RetentionRule)  # Kategorie-spezifisch
+    rp = aliased(RetentionRule)  # Projekt-Default (category IS NULL)
+    effective = case((rc.id.is_not(None), rc.max_days), else_=rp.max_days)
+
     candidates = session.exec(
         select(Document)
         .join(Project, Project.id == Document.project_id)
+        .outerjoin(
+            rc, and_(rc.project_id == Document.project_id, rc.category == Document.category)
+        )
+        .outerjoin(rp, and_(rp.project_id == Document.project_id, rp.category.is_(None)))
         .where(
             Document.status == DocumentStatus.active,
             Document.legal_hold.is_(False),
-            Project.retention_max_days.is_not(None),
-            Document.created_at
-            < now - func.make_interval(0, 0, 0, Project.retention_max_days),
-            or_(
-                Document.retention_until.is_(None),
-                Document.retention_until <= today,
-            ),
+            effective.is_not(None),
+            Document.created_at < now - func.make_interval(0, 0, 0, effective),
+            or_(Document.retention_until.is_(None), Document.retention_until <= today),
         )
         .limit(PURGE_BATCH)
     ).all()
 
     purge_after = now + timedelta(days=settings.purge_grace_days)
-    count = 0
     for doc in candidates:
         doc.status = DocumentStatus.deleted
         doc.deleted_at = now
@@ -311,62 +265,31 @@ def auto_soft_delete_expired(session: Session, *, now: datetime | None = None) -
             actor_user_id=None,
             entity_id=doc.id,
             project_id=doc.project_id,
-            metadata={"retention_max_days": doc.project_id and None},
+            metadata={"reason": "retention_max"},
         )
-        count += 1
     session.flush()
-    return count
+    return len(candidates)
 ```
 
-Hinweis: `func` ist in `maintenance.py` bereits importiert? Falls nicht: `from sqlalchemy import func` ergänzen (neben `or_, update`). `settings` ist importiert. Das `metadata`-Feld bewusst minimal halten (keine PII).
-
-- [ ] **Step 4: Tests laufen lassen (müssen bestehen)**
-
-Run: `docker compose run --rm -w /app/backend backend pytest tests/test_compliance.py -q`
-Expected: PASS (4 neue + bestehende).
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add packages/dms_core/dms_core/maintenance.py backend/tests/test_compliance.py backend/tests/factories.py
-git commit -m "G-3: auto_soft_delete_expired (Maximal-Retention, respektiert hold/min-retention)"
-```
+- [ ] **Step 4:** Run: `... pytest tests/test_compliance.py -q` → Expected: PASS (alle neuen + bestehende).
+- [ ] **Step 5:** Commit: `git add packages/dms_core/dms_core/maintenance.py backend/tests/test_compliance.py backend/tests/factories.py && git commit -m "G-3: auto_soft_delete_expired mit Kategorie-Regel-Aufloesung"`
 
 ---
 
 ### Task 5: Worker-Task + Beat-Schedule
 
-**Files:**
-- Modify: `packages/dms_core/dms_core/celery_app.py` (Task-Name, Route, Beat)
-- Modify: `worker/worker/tasks/maintenance.py` (Task-Wrapper)
-- Test: `worker/tests/test_processing.py` oder neuer `worker/tests/test_maintenance.py` (Wrapper ruft Kernlogik)
+**Files:** Modify `packages/dms_core/dms_core/celery_app.py`, `worker/worker/tasks/maintenance.py`
 
-- [ ] **Step 1: Task-Name + Route + Beat eintragen**
-
-In `celery_app.py` Task-Namen ergänzen:
-
-```python
-TASK_AUTO_EXPIRE = "tasks.auto_soft_delete_expired"
-```
-
-In `task_routes` ergänzen:
-
-```python
-        TASK_AUTO_EXPIRE: {"queue": "maintenance"},
-```
-
-In `beat_schedule` ergänzen (täglich 02:30 UTC — vor dem Purge um 03:00, damit frisch Soft-Deletes erst nach Ablauf der Grace-Period gepurged werden):
+- [ ] **Step 1:** In `celery_app.py`: `TASK_AUTO_EXPIRE = "tasks.auto_soft_delete_expired"`; in `task_routes`: `TASK_AUTO_EXPIRE: {"queue": "maintenance"},`; in `beat_schedule`:
 
 ```python
         "auto-expire-documents": {
             "task": TASK_AUTO_EXPIRE,
-            "schedule": crontab(minute=30, hour=2),
+            "schedule": crontab(minute=30, hour=2),  # taeglich 02:30 UTC, vor dem Purge
         },
 ```
 
-- [ ] **Step 2: Worker-Wrapper ergänzen**
-
-In `worker/worker/tasks/maintenance.py` Import um `TASK_AUTO_EXPIRE` erweitern und Task ergänzen:
+- [ ] **Step 2:** In `worker/worker/tasks/maintenance.py` (Import `TASK_AUTO_EXPIRE` ergänzen):
 
 ```python
 @celery_app.task(name=TASK_AUTO_EXPIRE)
@@ -375,138 +298,222 @@ def auto_soft_delete_expired() -> int:
         return maintenance.auto_soft_delete_expired(session)
 ```
 
-- [ ] **Step 3: Verifizieren (Task registriert, Kernlogik aufrufbar)**
-
-Run: `make test-worker`
-Expected: PASS (bestehende Worker-Tests bleiben grün; kein Bruch durch den neuen Task).
-
-- [ ] **Step 4: Commit**
-
-```bash
-git add packages/dms_core/dms_core/celery_app.py worker/worker/tasks/maintenance.py worker/tests/
-git commit -m "G-3: Beat-Task auto_soft_delete_expired (taeglich 02:30 UTC)"
-```
+- [ ] **Step 3:** Run: `make test-worker` → Expected: PASS (kein Bruch durch neuen Task).
+- [ ] **Step 4:** Commit: `git add packages/dms_core/dms_core/celery_app.py worker/worker/tasks/maintenance.py && git commit -m "G-3: Beat-Task auto_soft_delete_expired (02:30 UTC)"`
 
 ---
 
-### Task 6: `retention_max_days` über die Projekt-API setzbar
+### Task 6: Retention-Rules-API — setzen / **löschen (=aus)** / listen
 
-**Files:**
-- Modify: `backend/app/schemas/project.py:19-22` (`ProjectUpdate`), `:25-32` (`ProjectOut`)
-- Modify: `backend/app/services/project_service.py` (`update_project`)
-- Modify: `backend/app/api/routes_projects.py` (PATCH-Handler — `retention_max_days` durchreichen)
-- Test: `backend/tests/test_projects.py`
+**Files:** Create `backend/app/schemas/retention.py`; Modify `backend/app/services/project_service.py`, `backend/app/api/routes_projects.py`; Test `backend/tests/test_projects.py`
 
-- [ ] **Step 1: Failing test schreiben**
+**Aus-Schalter:** Auto-Purge für ein Projekt abschalten = die Projekt-Default-Regel (category=NULL) **löschen**. Eine Kategorie schützen = Regel mit `max_days=NULL` setzen. Beides explizit, keine 100-Jahre-Krücke.
 
-In `backend/tests/test_projects.py` ergänzen:
+Berechtigung: `require_project_role(admin)` (Owner/Admin) — Muster der bestehenden Projekt-Endpoints.
+
+- [ ] **Step 1: Failing tests** in `test_projects.py`:
 
 ```python
-def test_owner_can_set_retention_max_days(client, owner_headers, project_id):  # noqa: ANN001
-    res = client.patch(
-        f"/api/projects/{project_id}",
-        json={"retention_max_days": 730},
+def test_set_list_and_delete_retention_rule(client, owner_headers, project_id):  # noqa: ANN001
+    # setzen (Projekt-Default)
+    res = client.put(
+        f"/api/projects/{project_id}/retention-rules",
+        json={"category": None, "max_days": 365},
         headers=owner_headers,
     )
     assert res.status_code == 200, res.text
-    assert res.json()["retention_max_days"] == 730
+    # Kategorie-Exempt
+    client.put(
+        f"/api/projects/{project_id}/retention-rules",
+        json={"category": "Rechnung", "max_days": None},
+        headers=owner_headers,
+    )
+    # listen
+    rules = client.get(
+        f"/api/projects/{project_id}/retention-rules", headers=owner_headers
+    ).json()
+    assert {r["category"] for r in rules} == {None, "Rechnung"}
+    # AUS-Schalter: Projekt-Default loeschen
+    res = client.request(
+        "DELETE",
+        f"/api/projects/{project_id}/retention-rules",
+        json={"category": None},
+        headers=owner_headers,
+    )
+    assert res.status_code == 204
+    rules = client.get(
+        f"/api/projects/{project_id}/retention-rules", headers=owner_headers
+    ).json()
+    assert {r["category"] for r in rules} == {"Rechnung"}
+
+
+def test_retention_rule_requires_admin(client, viewer_headers, project_id):  # noqa: ANN001
+    res = client.put(
+        f"/api/projects/{project_id}/retention-rules",
+        json={"category": None, "max_days": 365},
+        headers=viewer_headers,
+    )
+    assert res.status_code == 403
 ```
 
-- [ ] **Step 2: Test laufen lassen (muss fehlschlagen)**
+- [ ] **Step 2:** Run: `... pytest tests/test_projects.py -q -k retention` → Expected: FAIL.
 
-Run: `docker compose run --rm -w /app/backend backend pytest tests/test_projects.py::test_owner_can_set_retention_max_days -q`
-Expected: FAIL (Feld unbekannt / nicht im Response).
-
-- [ ] **Step 3: Schema + Service + Route erweitern**
-
-`ProjectUpdate` ergänzen:
+- [ ] **Step 3: Schemas** `backend/app/schemas/retention.py`:
 
 ```python
-    retention_max_days: int | None = Field(default=None, ge=0, le=36500)
+"""DTOs fuer Retention-Regeln (Maximal-Aufbewahrung pro Projekt/Kategorie)."""
+
+from __future__ import annotations
+
+import uuid
+from datetime import datetime
+
+from pydantic import BaseModel, Field
+
+from app.schemas.common import ORMModel
+
+
+class RetentionRuleIn(BaseModel):
+    category: str | None = Field(default=None, max_length=100)
+    max_days: int | None = Field(default=None, ge=1, le=36500)  # None = exempt (nie loeschen)
+
+
+class RetentionRuleDelete(BaseModel):
+    category: str | None = None
+
+
+class RetentionRuleOut(ORMModel):
+    id: uuid.UUID
+    project_id: uuid.UUID
+    category: str | None
+    max_days: int | None
+    created_at: datetime
 ```
 
-`ProjectOut` ergänzen:
+- [ ] **Step 4: Service** in `project_service.py` (Upsert/List/Delete; Audit über `project_updated` o.ä.):
 
 ```python
-    retention_max_days: int | None = None
+def upsert_retention_rule(
+    session: Session, *, project: Project, category: str | None, max_days: int | None,
+    actor: User, ip: str | None,
+) -> RetentionRule:
+    rule = session.exec(
+        select(RetentionRule).where(
+            RetentionRule.project_id == project.id,
+            RetentionRule.category.is_(None) if category is None else RetentionRule.category == category,
+        )
+    ).first()
+    if rule is None:
+        rule = RetentionRule(project_id=project.id, category=category, max_days=max_days)
+        session.add(rule)
+    else:
+        rule.max_days = max_days
+        session.add(rule)
+    write_audit_log(
+        session, action=AuditAction.project_updated, entity_type="project",
+        actor_user_id=actor.id, entity_id=project.id, project_id=project.id, ip_address=ip,
+        metadata={"retention_rule": category or "<default>"},
+    )
+    session.flush()
+    return rule
+
+
+def list_retention_rules(session: Session, *, project: Project) -> list[RetentionRule]:
+    return list(
+        session.exec(select(RetentionRule).where(RetentionRule.project_id == project.id)).all()
+    )
+
+
+def delete_retention_rule(
+    session: Session, *, project: Project, category: str | None, actor: User, ip: str | None
+) -> None:
+    rule = session.exec(
+        select(RetentionRule).where(
+            RetentionRule.project_id == project.id,
+            RetentionRule.category.is_(None) if category is None else RetentionRule.category == category,
+        )
+    ).first()
+    if rule is not None:
+        session.delete(rule)
+        write_audit_log(
+            session, action=AuditAction.project_updated, entity_type="project",
+            actor_user_id=actor.id, entity_id=project.id, project_id=project.id, ip_address=ip,
+            metadata={"retention_rule_removed": category or "<default>"},
+        )
+        session.flush()
 ```
 
-`update_project`-Signatur um `retention_max_days: int | None` erweitern und im Body behandeln (Sentinel-Problem beachten: `None` heißt „nicht ändern" — wer Auto-Purge **abschalten** will, ist hier nicht abbildbar; für MVP genügt „setzen". Falls explizites Abschalten gewünscht: separates Flag/`-1`-Konvention dokumentieren):
+(Imports `RetentionRule` ergänzen.)
+
+- [ ] **Step 5: Routes** in `routes_projects.py` (3 Endpoints, `ProjAdmin`-Dependency analog vorhandener Projekt-Rollen-Annotationen):
 
 ```python
-    if retention_max_days is not None:
-        project.retention_max_days = retention_max_days
-        changed["retention_max_days"] = retention_max_days
+@router.put("/projects/{project_id}/retention-rules", response_model=RetentionRuleOut)
+def put_retention_rule(
+    body: RetentionRuleIn, ctx: ProjAdmin, session: SessionDep, request: Request
+) -> RetentionRuleOut:
+    rule = project_service.upsert_retention_rule(
+        session, project=ctx.project, category=body.category, max_days=body.max_days,
+        actor=ctx.user, ip=get_client_ip(request),
+    )
+    session.commit()
+    session.refresh(rule)
+    return RetentionRuleOut.model_validate(rule)
+
+
+@router.get("/projects/{project_id}/retention-rules", response_model=list[RetentionRuleOut])
+def get_retention_rules(ctx: ProjAdmin, session: SessionDep) -> list[RetentionRuleOut]:
+    return [RetentionRuleOut.model_validate(r) for r in project_service.list_retention_rules(session, project=ctx.project)]
+
+
+@router.delete("/projects/{project_id}/retention-rules", status_code=status.HTTP_204_NO_CONTENT)
+def delete_retention_rule(
+    body: RetentionRuleDelete, ctx: ProjAdmin, session: SessionDep, request: Request
+) -> Response:
+    project_service.delete_retention_rule(
+        session, project=ctx.project, category=body.category, actor=ctx.user, ip=get_client_ip(request)
+    )
+    session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 ```
 
-Im PATCH-Handler in `routes_projects.py` den Aufruf um `retention_max_days=body.retention_max_days` ergänzen (analog zu `name`/`description`/`status`).
+(Imports + `ProjAdmin = Annotated[ProjectContext, Depends(require_project_role(ProjectRole.admin))]` analog zu den bestehenden Annotationen in der Datei.)
 
-- [ ] **Step 4: Test laufen lassen (muss bestehen)**
-
-Run: `docker compose run --rm -w /app/backend backend pytest tests/test_projects.py -q && make test`
-Expected: PASS (gesamte Backend-Suite).
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add backend/app/schemas/project.py backend/app/services/project_service.py backend/app/api/routes_projects.py backend/tests/test_projects.py
-git commit -m "G-3: retention_max_days ueber Projekt-API setzbar"
-```
+- [ ] **Step 6:** Run: `... pytest tests/test_projects.py -q && make test` → Expected: PASS.
+- [ ] **Step 7:** Commit: `git add backend/app/schemas/retention.py backend/app/services/project_service.py backend/app/api/routes_projects.py backend/tests/test_projects.py && git commit -m "G-3: Retention-Rules-API (setzen/loeschen=aus/listen, Kategorie-Exempt)"`
 
 ---
 
-### Task 7 (optional): Frontend — UI-Feld + Audit-Aktion
+### Task 7 (optional): Frontend — Regel-Verwaltung + Audit-Aktion
 
-**Files:**
-- Modify: `frontend/src/types/api.ts` — `ProjectOut.retention_max_days?: number | null`; `AUDIT_ACTIONS` um `"document.auto_expired"` erweitern.
-- Modify: `frontend/src/features/projects/ProjectDetailPage.tsx` + `hooks.ts` — Eingabefeld „Maximal-Aufbewahrung (Tage)" in der „Projekt verwalten"-Karte; `useUpdateProject` um `retention_max_days` erweitern.
-- Modify: `frontend/src/features/admin/AuditLogsPage.tsx` — Filter zeigt die neue Aktion (kommt automatisch über `AUDIT_ACTIONS`).
+**Files:** `frontend/src/types/api.ts`, `frontend/src/features/projects/ProjectDetailPage.tsx` + `hooks.ts`, `frontend/src/features/admin/AuditLogsPage.tsx`
 
-- [ ] **Step 1: Typen + Hook + UI ergänzen** (Muster der bestehenden Felder/Mutationen übernehmen, deutsche Labels).
-
-- [ ] **Step 2: Typecheck + Tests**
-
-Run: `docker compose run --rm --no-deps --entrypoint sh frontend -c "npm ci && npx tsc --noEmit && npm run test"`
-Expected: tsc sauber, vitest grün.
-
-- [ ] **Step 3: Commit**
-
-```bash
-git add frontend/src
-git commit -m "G-3: Frontend — Maximal-Aufbewahrung pro Projekt + Audit-Aktion"
-```
+- [ ] **Step 1:** Typen: `RetentionRuleOut`/`RetentionRuleIn`; `AUDIT_ACTIONS` um `"document.auto_expired"` erweitern.
+- [ ] **Step 2:** In der „Projekt verwalten"-Karte eine kleine Regel-Tabelle: Zeilen mit (Kategorie | Max-Tage | „nie" | Entfernen). „+ Regel" öffnet ein Mini-Formular (Kategorie leer = Projekt-Default; Max-Tage leer = exempt/„nie"). Hooks: `useRetentionRules(projectId)`, `useUpsertRetentionRule`, `useDeleteRetentionRule` (Muster der bestehenden Mutations + `confirmDialog` beim Entfernen). Deutsche Labels, `keepPreviousData` nicht nötig.
+- [ ] **Step 3:** Run: `docker compose run --rm --no-deps --entrypoint sh frontend -c "npm ci && npx tsc --noEmit && npm run test"` → Expected: tsc sauber, vitest grün.
+- [ ] **Step 4:** Commit: `git add frontend/src && git commit -m "G-3: Frontend — Retention-Regel-Verwaltung pro Projekt/Kategorie"`
 
 ---
 
 ### Task 8: Doku — CLAUDE.md
 
-**Files:**
-- Modify: `CLAUDE.md`
+**Files:** Modify `CLAUDE.md`
 
-- [ ] **Step 1: Retention-Konvention dokumentieren**
-
-Unter „Worker / Skalierung" bzw. einem neuen „Compliance/Retention"-Punkt festhalten: `retention_until` = Mindest-Aufbewahrung (blockt Löschung, Default aus `default_retention_days` beim Upload); `Project.retention_max_days` = Maximal-Aufbewahrung (None = aus), Auto-Soft-Delete via Beat-Task `auto_soft_delete_expired` (täglich 02:30), endgültiger Purge danach über die Grace-Period. Beide respektieren `legal_hold` und die Mindest-Aufbewahrung.
-
-- [ ] **Step 2: Commit**
-
-```bash
-git add CLAUDE.md
-git commit -m "G-3: CLAUDE.md — Retention-/Auto-Purge-Konventionen"
-```
+- [ ] **Step 1:** Retention-Konventionen festhalten: `retention_until` = Mindest-Aufbewahrung (Default beim Upload, pro Dokument überschreibbar, blockt Löschung). `retention_rules` = Maximal-Aufbewahrung pro Projekt/Kategorie; **Auflösung spezifischste-Regel-gewinnt**, `max_days=NULL` = exempt; **Aus-Schalter = Regel löschen**. Auto-Soft-Delete via Beat `auto_soft_delete_expired` (02:30), Hard-Purge danach über Grace. Alles respektiert `legal_hold` + Mindest-Aufbewahrung.
+- [ ] **Step 2:** Commit: `git add CLAUDE.md && git commit -m "G-3: CLAUDE.md — Retention-Regeln + Aus-Schalter"`
 
 ---
 
 ## Self-Review
 
-- **Spec-Abdeckung:** Min-Retention-Default (Task 3), Max-Retention pro Projekt (Task 2/6), Auto-Purge off-by-default (Task 4, `retention_max_days IS NOT NULL`), Bestands-Backfill via Migration (Task 2), respektiert legal_hold + min-retention (Task 4 Tests). ✓
-- **Type-Konsistenz:** `auto_soft_delete_expired(session, *, now=None)` einheitlich in Kern (Task 4) und Wrapper (Task 5); `retention_max_days` als `int | None` durchgängig in Modell/Schema/Service. ✓
-- **Bekannte Grenze (dokumentieren):** „pro Kategorie" ist hier nicht umgesetzt — die Policy hängt am Projekt (pragmatischer 80-%-Fall). Kategorie-Policy ⇒ späterer Task mit Policy-Tabelle. Außerdem: „retention_max_days wieder abschalten" über die PATCH-API ist mit der `None=nicht ändern`-Semantik nicht abbildbar (Task 6 Hinweis) — bei Bedarf eigene Konvention.
-- **Reihenfolge-Abhängigkeit:** Task 2 (Migration/Spalte) muss vor Task 4/6 laufen. Task 1 vor Task 4 (Audit-Aktion).
+- **Spec-Abdeckung:** Min-Retention-Default (Task 3), Max-Retention **pro Projekt UND Kategorie** (Task 2/4/6), Auto-Purge default-aus (keine Regel → `effective` NULL → nichts), **Kategorie-Exempt** (`max_days=NULL`), **sauberer Aus-Schalter** (DELETE der Regel, Task 6), Bestands-Backfill (Task 2), respektiert legal_hold + min-retention (Task 4 Tests). ✓
+- **Type-Konsistenz:** `RetentionRule(project_id, category, max_days)` durchgängig in Modell/Auflösung/API; `auto_soft_delete_expired(session, *, now=None)` in Kern (Task 4) und Wrapper (Task 5). ✓
+- **DB-Voraussetzung:** `NULLS NOT DISTINCT` braucht PostgreSQL 15+ (Compose nutzt PG 16 ✓). Modell- und Migrations-Constraint müssen identisch sein, sonst `alembic check`-Drift.
+- **Edge:** Dokumente ohne Kategorie (`category IS NULL`) matchen keine Kategorie-Regel (NULL=NULL ist im JOIN nicht wahr) → fallen korrekt auf den Projekt-Default. Gewollt.
 
 ---
 
 ## Execution Handoff
 
-Zwei Ausführungsoptionen:
 1. **Subagent-Driven (empfohlen)** — pro Task ein frischer Subagent, Review dazwischen.
 2. **Inline** — Tasks in dieser Session mit Checkpoints.
