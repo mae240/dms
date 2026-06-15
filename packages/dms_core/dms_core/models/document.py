@@ -22,6 +22,7 @@ from sqlalchemy import (
     Column,
     Date,
     DateTime,
+    Index,
     String,
     Text,
     UniqueConstraint,
@@ -41,6 +42,14 @@ class Document(SQLModel, table=True):
     __tablename__ = "documents"
     __table_args__ = (
         CheckConstraint(f"status {enum_check(DocumentStatus)}", name="status_valid"),
+        # Trigram-GIN-Index fuer ILIKE '%term%' Titelsuche (leading wildcard,
+        # B-Tree nicht nutzbar). Benoetigt Extension pg_trgm (siehe Migration).
+        Index(
+            "ix_documents_title_trgm",
+            "title",
+            postgresql_using="gin",
+            postgresql_ops={"title": "gin_trgm_ops"},
+        ),
     )
 
     id: uuid.UUID = pk_field()

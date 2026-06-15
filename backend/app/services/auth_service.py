@@ -8,6 +8,7 @@ Token-Strategie:
 
 from __future__ import annotations
 
+import hashlib
 import uuid
 from datetime import UTC, datetime
 
@@ -97,7 +98,9 @@ def authenticate(
             entity_type="user",
             actor_user_id=user.id if user else None,
             ip_address=ip,
-            metadata={"email": email},
+            # Kein Klartext: Mail wird nie geschwaerzt. Hash erlaubt Korrelation
+            # ohne PII (Datenminimierung Art. 5).
+            metadata={"email_sha256": hashlib.sha256(email.lower().encode()).hexdigest()},
         )
         session.commit()  # Audit-Eintrag des Fehlversuchs persistieren
         raise unauthorized("Ungueltige Zugangsdaten", code="invalid_credentials")

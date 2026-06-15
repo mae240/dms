@@ -81,6 +81,7 @@ def update_project(
         changed["name"] = name
     if description is not None:
         project.description = description
+        # Bewusst kein Wert: Beschreibung kann PII enthalten (Datenminimierung Art. 5)
         changed["description"] = True
     if status is not None:
         # Ueber diesen Weg nur active/archived; Loeschung laeuft ueber DELETE.
@@ -181,7 +182,8 @@ def add_member(
         entity_id=target.id,
         project_id=project_id,
         ip_address=ip,
-        metadata={"role": role.value, "member_email": email},
+        # Kein member_email: PII redundant (entity_id ist die User-UUID), Datenminimierung Art. 5.
+        metadata={"role": role.value},
     )
     return member, target
 
@@ -205,6 +207,10 @@ def change_member_role(
     membership.role = role
     session.add(membership)
     target = session.get(User, target_user_id)
+    if target is None:
+        # Inkonsistenz: Mitgliedschaft existiert, User-Zeile nicht (sollte nicht
+        # vorkommen). Lieber 404 als spaeter AttributeError(500) in der Route.
+        raise not_found("Mitglied nicht gefunden", code="member_not_found")
     write_audit_log(
         session,
         action=AuditAction.project_member_role_changed,
@@ -215,7 +221,7 @@ def change_member_role(
         ip_address=ip,
         metadata={"role": role.value},
     )
-    return membership, target  # type: ignore[return-value]
+    return membership, target
 
 
 def remove_member(

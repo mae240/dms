@@ -6,6 +6,7 @@ import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import { ApiError } from "./lib/apiClient";
 import { AuthProvider } from "./lib/auth";
+import { ConfirmContainer } from "./lib/confirm";
 import { ToastContainer, toast } from "./lib/toast";
 import "./index.css";
 
@@ -45,6 +46,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         </AuthProvider>
       </BrowserRouter>
       <ToastContainer />
+      <ConfirmContainer />
     </QueryClientProvider>
   </React.StrictMode>,
 );
