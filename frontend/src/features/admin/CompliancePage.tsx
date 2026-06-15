@@ -46,11 +46,16 @@ function RetentionTool() {
           <button
             disabled={!documentId || setRetention.isPending}
             onClick={async () => {
-              await setRetention.mutateAsync({
-                documentId,
-                retention_until: retention || null,
-              });
-              setMsg("Aufbewahrungsdatum gesetzt.");
+              setMsg(null);
+              try {
+                await setRetention.mutateAsync({
+                  documentId,
+                  retention_until: retention || null,
+                });
+                setMsg("Aufbewahrungsdatum gesetzt.");
+              } catch {
+                /* Fehler via setRetention.error im ErrorBanner */
+              }
             }}
           >
             Aufbewahrung setzen
@@ -60,8 +65,13 @@ function RetentionTool() {
           <button
             disabled={!documentId || setLegalHold.isPending}
             onClick={async () => {
-              await setLegalHold.mutateAsync({ documentId, legal_hold: true });
-              setMsg("Legal Hold aktiviert.");
+              setMsg(null);
+              try {
+                await setLegalHold.mutateAsync({ documentId, legal_hold: true });
+                setMsg("Legal Hold aktiviert.");
+              } catch {
+                /* Fehler via setLegalHold.error im ErrorBanner */
+              }
             }}
           >
             Legal Hold aktivieren
@@ -69,8 +79,13 @@ function RetentionTool() {
           <button
             disabled={!documentId || setLegalHold.isPending}
             onClick={async () => {
-              await setLegalHold.mutateAsync({ documentId, legal_hold: false });
-              setMsg("Legal Hold aufgehoben.");
+              setMsg(null);
+              try {
+                await setLegalHold.mutateAsync({ documentId, legal_hold: false });
+                setMsg("Legal Hold aufgehoben.");
+              } catch {
+                /* Fehler via setLegalHold.error im ErrorBanner */
+              }
             }}
           >
             Legal Hold aufheben
