@@ -12,11 +12,13 @@ Legt an (nur falls noch nicht vorhanden):
 from __future__ import annotations
 
 import io
+import os
 import uuid
 
 from sqlmodel import Session, select
 
 from dms_core.audit import write_audit_log
+from dms_core.config import settings
 from dms_core.db import engine
 from dms_core.enums import AuditAction, ProcessingStatus, ProjectRole
 from dms_core.files import sha256_of_chunks
@@ -28,8 +30,24 @@ from dms_core.security import hash_password
 from dms_core.storage import get_storage
 
 ADMIN_EMAIL = "admin@dms.local"
-ADMIN_PASSWORD = "adminpass123"
-DEMO_PASSWORD = "demopass123"
+
+
+def _seed_password(env_var: str, dev_default: str) -> str:
+    """Seed-Passwort aus der Umgebung lesen.
+
+    In production MUSS die Env-Variable gesetzt sein (sonst RuntimeError) — der
+    Dev-Default verhindert versehentlich schwache Passwoerter in Prod.
+    """
+    value = os.environ.get(env_var)
+    if value:
+        return value
+    if settings.environment == "production":
+        raise RuntimeError(f"{env_var} muss in production gesetzt sein")
+    return dev_default
+
+
+ADMIN_PASSWORD = _seed_password("SEED_ADMIN_PASSWORD", "adminpass123")
+DEMO_PASSWORD = _seed_password("SEED_DEMO_PASSWORD", "demopass123")
 
 
 def _get_or_create_user(

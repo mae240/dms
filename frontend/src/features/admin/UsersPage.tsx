@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import { Pagination } from "../../components/Pagination";
 import { Empty, ErrorBanner, Loading } from "../../components/ui";
+import { confirmDialog } from "../../lib/confirm";
 import { formatDate } from "../../lib/format";
 import {
   PAGE_SIZE,
@@ -25,7 +26,7 @@ export function UsersPage() {
       <CreateUserForm />
       <ErrorBanner error={users.error || anonymize.error || createExport.error} />
       <div className="card">
-        {users.isLoading ? (
+        {users.isPending ? (
           <Loading />
         ) : !users.data?.items.length ? (
           <Empty>Keine Benutzer.</Empty>
@@ -70,13 +71,15 @@ export function UsersPage() {
                       {!u.is_anonymized && (
                         <button
                           className="small danger"
-                          onClick={() => {
-                            if (
-                              confirm(
-                                "Benutzer anonymisieren (Art. 17)? Konto wird deaktiviert, PII entfernt.",
-                              )
-                            )
-                              anonymize.mutate(u.id);
+                          onClick={async () => {
+                            const ok = await confirmDialog({
+                              title: "Benutzer anonymisieren",
+                              message:
+                                "Benutzer anonymisieren (Art. 17)? Konto wird deaktiviert, PII entfernt. Nicht umkehrbar.",
+                              confirmLabel: "Anonymisieren",
+                              danger: true,
+                            });
+                            if (ok) anonymize.mutate(u.id);
                           }}
                           disabled={anonymize.isPending}
                         >

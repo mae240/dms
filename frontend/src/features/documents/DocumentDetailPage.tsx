@@ -2,11 +2,11 @@ import { useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { Empty, ErrorBanner, Loading, StatusBadge } from "../../components/ui";
-import { getAccessToken } from "../../lib/apiClient";
 import { useAuth } from "../../lib/auth";
 import { roleAtLeast } from "../../lib/can";
-import { downloadAuthed, formatBytes, formatDate } from "../../lib/format";
-import { toast } from "../../lib/toast";
+import { confirmDialog } from "../../lib/confirm";
+import { triggerDownload } from "../../lib/download";
+import { formatBytes, formatDate } from "../../lib/format";
 import type { DocumentDetailOut, DocumentStatus } from "../../types/api";
 import { useSetLegalHold, useSetRetention } from "../admin/hooks";
 import { useProject } from "../projects/hooks";
@@ -19,14 +19,6 @@ import {
   useUploadVersion,
   useVersions,
 } from "./hooks";
-
-async function triggerDownload(path: string): Promise<void> {
-  try {
-    await downloadAuthed(path, getAccessToken());
-  } catch {
-    toast.error("Download fehlgeschlagen.");
-  }
-}
 
 export function DocumentDetailPage() {
   const { documentId = "" } = useParams();
@@ -91,7 +83,7 @@ export function DocumentDetailPage() {
 
       {canEdit && d.status !== "deleted" && (
         <>
-          <MetadataEditor doc={d} />
+          <MetadataEditor key={d.id + d.updated_at} doc={d} />
           <NewVersion documentId={d.id} />
         </>
       )}
@@ -177,8 +169,16 @@ function DeleteButton({ documentId }: { documentId: string }) {
   return (
     <button
       className="danger"
-      onClick={() => {
-        if (confirm("Dokument loeschen? (Soft-Delete, wiederherstellbar)")) del.mutate();
+      onClick={async () => {
+        if (
+          await confirmDialog({
+            title: "Dokument loeschen",
+            message: "Soft-Delete, wiederherstellbar. Fortfahren?",
+            confirmLabel: "Loeschen",
+            danger: true,
+          })
+        )
+          del.mutate();
       }}
       disabled={del.isPending}
     >
@@ -225,8 +225,14 @@ function ComplianceControls({ doc }: { doc: DocumentDetailOut }) {
         {doc.legal_hold ? (
           <button
             disabled={setLegalHold.isPending}
-            onClick={() => {
-              if (confirm("Legal Hold aufheben?"))
+            onClick={async () => {
+              if (
+                await confirmDialog({
+                  title: "Legal Hold aufheben",
+                  message: "Legal Hold fuer dieses Dokument aufheben?",
+                  confirmLabel: "Aufheben",
+                })
+              )
                 setLegalHold.mutate({ documentId: doc.id, legal_hold: false });
             }}
           >
@@ -236,11 +242,15 @@ function ComplianceControls({ doc }: { doc: DocumentDetailOut }) {
           <button
             className="danger"
             disabled={setLegalHold.isPending}
-            onClick={() => {
+            onClick={async () => {
               if (
-                confirm(
-                  "Legal Hold aktivieren? Das Dokument kann dann nicht geloescht oder gepurged werden.",
-                )
+                await confirmDialog({
+                  title: "Legal Hold aktivieren",
+                  message:
+                    "Das Dokument kann dann nicht geloescht oder gepurged werden. Fortfahren?",
+                  confirmLabel: "Aktivieren",
+                  danger: true,
+                })
               )
                 setLegalHold.mutate({ documentId: doc.id, legal_hold: true });
             }}

@@ -11,7 +11,8 @@ export function RequireAuth({ children }: { children: ReactNode }) {
 }
 
 export function RequireSuperadmin() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+  if (loading) return <div className="empty">Lade …</div>;
   if (!user?.is_superadmin) return <Navigate to="/dashboard" replace />;
   return <Outlet />;
 }

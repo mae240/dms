@@ -4,19 +4,19 @@ import { Link } from "react-router-dom";
 import { Pagination } from "../../components/Pagination";
 import { Empty, ErrorBanner, Loading, StatusBadge } from "../../components/ui";
 import { formatDate } from "../../lib/format";
-import type { DocumentStatus } from "../../types/api";
+import type { ProjectStatus } from "../../types/api";
 import { PAGE_SIZE, useCreateProject, useProjects, useRestoreProject } from "./hooks";
 
-const VIEWS: { key: DocumentStatus; label: string }[] = [
+const VIEWS: { key: ProjectStatus; label: string }[] = [
   { key: "active", label: "Aktiv" },
   { key: "archived", label: "Archiviert" },
   { key: "deleted", label: "Papierkorb" },
 ];
 
 export function ProjectsPage() {
-  const [view, setView] = useState<DocumentStatus>("active");
+  const [view, setView] = useState<ProjectStatus>("active");
   const [offset, setOffset] = useState(0);
-  const { data, isLoading, error } = useProjects(view, PAGE_SIZE, offset);
+  const { data, isPending, error } = useProjects(view, PAGE_SIZE, offset);
   const restore = useRestoreProject();
   const create = useCreateProject();
   const [name, setName] = useState("");
@@ -24,7 +24,7 @@ export function ProjectsPage() {
   const [open, setOpen] = useState(false);
   const isTrash = view === "deleted";
 
-  function switchView(v: DocumentStatus) {
+  function switchView(v: ProjectStatus) {
     setView(v);
     setOffset(0);
   }
@@ -78,7 +78,7 @@ export function ProjectsPage() {
 
       <ErrorBanner error={error || restore.error} />
       <div className="card">
-        {isLoading ? (
+        {isPending ? (
           <Loading />
         ) : !data?.items.length ? (
           <Empty>

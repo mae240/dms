@@ -3,10 +3,10 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { Pagination } from "../../components/Pagination";
 import { Empty, ErrorBanner, Loading, StatusBadge } from "../../components/ui";
-import { getAccessToken } from "../../lib/apiClient";
 import { roleAtLeast } from "../../lib/can";
-import { downloadAuthed, formatBytes, formatDate } from "../../lib/format";
-import { toast } from "../../lib/toast";
+import { confirmDialog } from "../../lib/confirm";
+import { triggerDownload } from "../../lib/download";
+import { formatBytes, formatDate } from "../../lib/format";
 import type { DocumentStatus, MemberOut, ProjectDetailOut, ProjectRole } from "../../types/api";
 import { useVersions } from "../documents/hooks";
 import {
@@ -21,14 +21,6 @@ import {
   useUpdateProject,
   useUploadDocument,
 } from "./hooks";
-
-async function triggerDownload(path: string): Promise<void> {
-  try {
-    await downloadAuthed(path, getAccessToken());
-  } catch {
-    toast.error("Download fehlgeschlagen.");
-  }
-}
 
 export function ProjectDetailPage() {
   const { projectId = "" } = useParams();
@@ -105,7 +97,14 @@ function ProjectSettings({ project }: { project: ProjectDetailOut }) {
               className="danger"
               disabled={del.isPending}
               onClick={async () => {
-                if (confirm("Projekt loeschen? (Papierkorb, wiederherstellbar)")) {
+                const ok = await confirmDialog({
+                  title: "Projekt loeschen",
+                  message:
+                    "Projekt in den Papierkorb verschieben? Es bleibt wiederherstellbar.",
+                  confirmLabel: "Loeschen",
+                  danger: true,
+                });
+                if (ok) {
                   await del.mutateAsync(project.id);
                   navigate("/projects");
                 }
@@ -300,7 +299,7 @@ function DocumentsCard({ projectId }: { projectId: string }) {
   const [view, setView] = useState<DocumentStatus>("active");
   const [search, setSearch] = useState("");
   const [offset, setOffset] = useState(0);
-  const { data, isLoading, error } = useDocuments(projectId, view, search, PAGE_SIZE, offset);
+  const { data, isPending, error } = useDocuments(projectId, view, search, PAGE_SIZE, offset);
   const restore = useRestoreDocumentInProject(projectId);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const isTrash = view === "deleted";
@@ -347,7 +346,7 @@ function DocumentsCard({ projectId }: { projectId: string }) {
         />
       </div>
       <ErrorBanner error={error || restore.error} />
-      {isLoading ? (
+      {isPending ? (
         <Loading />
       ) : !data?.items.length ? (
         <Empty>

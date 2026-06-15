@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "../../lib/apiClient";
 import { toast } from "../../lib/toast";
@@ -16,6 +16,7 @@ export function useAdminUsers(limit = PAGE_SIZE, offset = 0) {
   return useQuery({
     queryKey: ["admin", "users", limit, offset],
     queryFn: () => api.get<Page<AdminUserOut>>(`/admin/users?limit=${limit}&offset=${offset}`),
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -61,6 +62,7 @@ export function useExports(limit = PAGE_SIZE, offset = 0) {
   return useQuery({
     queryKey: ["admin", "exports", limit, offset],
     queryFn: () => api.get<Page<ExportOut>>(`/admin/exports?limit=${limit}&offset=${offset}`),
+    placeholderData: keepPreviousData,
     refetchInterval: (query) => {
       const data = query.state.data as Page<ExportOut> | undefined;
       const pending = data?.items.some(
@@ -85,6 +87,7 @@ export function useAuditLogs(filters: AuditFilters, limit = PAGE_SIZE, offset = 
   return useQuery({
     queryKey: ["admin", "audit", filters, limit, offset],
     queryFn: () => api.get<Page<AuditLogOut>>(`/admin/audit-logs?${q}`),
+    placeholderData: keepPreviousData,
   });
 }
 

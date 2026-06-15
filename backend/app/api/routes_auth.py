@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import uuid
+
 from fastapi import APIRouter, Request, Response, status
 
 from app.core.cookies import clear_refresh_cookie, set_refresh_cookie
@@ -25,6 +27,9 @@ def register_first_admin(
     body: RegisterFirstAdminIn, request: Request, response: Response, session: SessionDep
 ) -> TokenOut:
     ip = get_client_ip(request)
+    # Argon2-DoS-Schutz: eigener, kleiner Bucket (Endpunkt wird im Normalfall
+    # genau einmal aufgerufen).
+    enforce_rate_limit("register", ip, limit=5)
     user, refresh = auth_service.register_first_admin(
         session, email=body.email, password=body.password, full_name=body.full_name, ip=ip
     )
@@ -97,8 +102,6 @@ def logout(request: Request, response: Response, session: SessionDep) -> Respons
     header = request.headers.get("authorization", "")
     if header.lower().startswith("bearer "):
         try:
-            import uuid
-
             actor_id = uuid.UUID(str(decode_access_token(header[7:]).get("sub")))
         except (AccessTokenError, ValueError, TypeError):
             actor_id = None

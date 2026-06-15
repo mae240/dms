@@ -12,7 +12,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Column, String, Uuid
+from sqlalchemy import Column, Index, String, Uuid, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, SQLModel
 
@@ -21,9 +21,16 @@ from dms_core.models._helpers import created_at_field, fk_uuid, pk_field
 
 class AuditLog(SQLModel, table=True):
     __tablename__ = "audit_logs"
+    __table_args__ = (
+        # Hot-Path: Audit-Liste je Projekt, neueste zuerst (Filter + Sortierung).
+        Index("ix_audit_logs_project_created", "project_id", text("created_at DESC")),
+    )
 
     id: uuid.UUID = pk_field()
-    actor_user_id: uuid.UUID | None = fk_uuid("users.id", nullable=True, ondelete="SET NULL")
+    # index=True -> ix_audit_logs_actor_user_id (Art-15-Export: WHERE actor_user_id = ?)
+    actor_user_id: uuid.UUID | None = fk_uuid(
+        "users.id", nullable=True, ondelete="SET NULL", index=True
+    )
     action: str = Field(sa_column=Column(String(64), nullable=False, index=True))
     entity_type: str = Field(sa_column=Column(String(64), nullable=False))
     entity_id: uuid.UUID | None = Field(default=None, sa_column=Column(Uuid(), nullable=True))

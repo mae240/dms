@@ -26,13 +26,26 @@ def enforce_rate_limit(scope: str, identifier: str | None, *, limit: int, window
 
     Faellt bei Redis-Ausfall bewusst offen (fail-open), um Logins nicht komplett
     zu blockieren — Verfuegbarkeit vs. Brute-Force-Schutz im MVP abgewogen.
+
+    Fehlt der identifier (z.B. keine Client-IP), wird fail-closed sofort 429
+    geworfen — sonst landen alle anonymen Requests in einem Sammel-Key
+    (DoS/Bypass). Das ist KEIN Redis-Ausfall, daher kein fail-open.
     """
-    key = f"rl:{scope}:{identifier or 'unknown'}"
+    if not identifier:
+        raise ApiError(
+            429,
+            "rate_limited",
+            "Zu viele Versuche. Bitte spaeter erneut versuchen.",
+        )
+    key = f"rl:{scope}:{identifier}"
     try:
         client = _redis()
-        current = client.incr(key)
-        if current == 1:
-            client.expire(key, window_s)
+        # incr + expire atomar via Pipeline, sonst kann ein Key ohne TTL haengen
+        # bleiben (Dauer-Block).
+        pipe = client.pipeline()
+        pipe.incr(key)
+        pipe.expire(key, window_s, nx=True)
+        current, _ = pipe.execute()
     except redis.RedisError:
         return  # fail-open
     if current > limit:

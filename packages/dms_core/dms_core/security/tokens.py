@@ -8,7 +8,7 @@ Refresh wird der alte Token revoked (simple Rotation).
 
 from __future__ import annotations
 
-import hashlib
+import hmac
 import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -49,8 +49,12 @@ def generate_refresh_token() -> str:
 
 
 def hash_refresh_token(token: str) -> str:
-    """SHA-256-Hash fuer die Speicherung (nie Klartext persistieren)."""
-    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+    """HMAC-SHA256 (mit jwt_secret) fuer die Speicherung — nie Klartext.
+
+    HMAC statt blankem SHA-256: ohne Kenntnis des Secrets sind die DB-Hashes
+    nicht offline angreifbar/vorberechenbar.
+    """
+    return hmac.new(settings.jwt_secret.encode(), token.encode(), "sha256").hexdigest()
 
 
 def refresh_expiry() -> datetime:
