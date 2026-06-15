@@ -148,7 +148,6 @@ def _ensure_demo_document(session: Session, project: Project, author: User) -> N
         mime_type="text/plain",
         size_bytes=len(content),
         processing_status=ProcessingStatus.ready,
-        extracted_text=content.decode("utf-8"),
         created_by=author.id,
     )
     session.add(document)

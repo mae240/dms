@@ -31,10 +31,6 @@ class VersionOut(ORMModel):
     processed_at: datetime | None
 
 
-class VersionDetailOut(VersionOut):
-    extracted_text: str | None = None  # nur im Detail (Datenminimierung)
-
-
 class DocumentListItem(BaseModel):
     id: uuid.UUID
     title: str

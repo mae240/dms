@@ -95,6 +95,13 @@ class Settings(BaseSettings):
                 "DATABASE_URL nutzt in Produktion das unsichere Default-Passwort. "
                 "Bitte ein starkes DB-Passwort in der Umgebung setzen."
             )
+        if self.environment == "production" and not self.refresh_cookie_secure:
+            # Ohne Secure-Flag kann das langlebige Refresh-Cookie ueber HTTP
+            # abgegriffen werden (Art. 32). In Produktion ist HTTPS Pflicht.
+            raise ValueError(
+                "REFRESH_COOKIE_SECURE muss in Produktion 'true' sein (HTTPS erzwingen). "
+                "Das Refresh-Cookie darf nie unverschluesselt uebertragen werden."
+            )
         return self
 
 

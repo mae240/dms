@@ -103,7 +103,9 @@ def process_document_version(self, version_id: str) -> str:  # noqa: ANN001
     # 2) Verifizieren + extrahieren (ausserhalb der Transaktion, streamend).
     try:
         stream: Iterator[bytes] = get_storage().open_stream(storage_key)
-        new_status, error, text = evaluate_stream(
+        # Die Extraktion validiert die Lesbarkeit; der Text wird bewusst
+        # verworfen (nicht persistiert) — siehe Datenminimierung unten.
+        new_status, error, _text = evaluate_stream(
             stream, expected_hash=expected_hash, stored_mime=stored_mime
         )
     except Exception:  # noqa: BLE001
@@ -112,7 +114,6 @@ def process_document_version(self, version_id: str) -> str:  # noqa: ANN001
         logger.exception("Verarbeitung der Version %s fehlgeschlagen", vid)
         new_status = ProcessingStatus.failed
         error = "Verarbeitung fehlgeschlagen"
-        text = None
 
     # 3) Ergebnis persistieren.
     with session_scope() as session:
@@ -121,7 +122,10 @@ def process_document_version(self, version_id: str) -> str:  # noqa: ANN001
             return "missing"
         version.processing_status = new_status
         version.processing_error = error
-        version.extracted_text = text
+        # Datenminimierung (Art. 5(1c)/32): Die Extraktion validiert nur die
+        # Lesbarkeit der Datei; der Volltext wird NICHT unverschluesselt in der
+        # DB gespeichert. Reaktivieren erst mit Volltextsuche (dann als tsvector).
+        version.extracted_text = None
         version.processed_at = datetime.now(UTC)
         session.add(version)
 

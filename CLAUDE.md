@@ -121,7 +121,8 @@ routes_*.py (Controller)  →  services/*.py (Business)  →  dms_core/models (O
 
 ### Sicherheit (Default-sicher)
 - Secrets nur via Env/`.env` (ist in `.gitignore`, NIE committen — nur `.env.example`). Keine Credentials/Keys im Code.
-- In `production` erzwingt `config._enforce_prod_secrets` echte Secrets (kein `change-me`-Default für `jwt_secret`/`database_url`).
+- In `production` erzwingt `config._enforce_prod_secrets` echte Secrets (kein `change-me`-Default für `jwt_secret`/`database_url`) UND `refresh_cookie_secure=True` (HTTPS-Pflicht — langlebiges Refresh-Cookie nie über HTTP).
+- Dokumentinhalte werden minimiert: `extracted_text` wird NICHT unverschlüsselt in der DB persistiert (die Extraktion validiert nur die Lesbarkeit). Reaktivierung nur mit Volltextsuche, dann als `tsvector` (Tokens statt Klartext).
 - Rate-Limiting auf allen Auth-/CPU-teuren Endpunkten (`enforce_rate_limit`). Fehlende Client-IP = fail-closed (429), nur Redis-Ausfall ist fail-open.
 - `X-Forwarded-For` nur auswerten wenn `settings.trust_proxy_headers` (hinter vertrauenswürdigem Proxy) — sonst IP-Spoofing/Rate-Limit-Bypass. Proxy zusätzlich via uvicorn `--proxy-headers --forwarded-allow-ips` absichern.
 - Eingaben an Systemgrenzen validieren (Pydantic-Längen, MIME via python-magic NICHT via Extension, Storage-Keys opak/nicht erratbar, Dateinamen sanitizen).
