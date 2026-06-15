@@ -202,11 +202,12 @@ def test_set_list_and_delete_retention_rule(client: TestClient, db_session: Sess
     )
     assert res.status_code == 200, res.text
     # Kategorie-Exempt (nie loeschen)
-    client.put(
+    res = client.put(
         f"/api/projects/{pid}/retention-rules",
         json={"category": "Rechnung", "max_days": None},
         headers=headers,
     )
+    assert res.status_code == 200, res.text
     # listen
     rules = client.get(
         f"/api/projects/{pid}/retention-rules", headers=headers

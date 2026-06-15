@@ -86,6 +86,7 @@ class AuditAction(StrEnum):
     compliance_user_export_created = "compliance.user_export_created"
     compliance_user_export_downloaded = "compliance.user_export_downloaded"
     compliance_retention_set = "compliance.retention_set"
+    compliance_retention_removed = "compliance.retention_removed"
     compliance_legal_hold_set = "compliance.legal_hold_set"
     compliance_document_purged = "compliance.document_purged"
 

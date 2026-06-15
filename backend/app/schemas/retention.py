@@ -16,7 +16,7 @@ class RetentionRuleIn(BaseModel):
 
 
 class RetentionRuleDelete(BaseModel):
-    category: str | None = None
+    category: str | None = Field(default=None, max_length=100)
 
 
 class RetentionRuleOut(ORMModel):

@@ -280,8 +280,8 @@ def upsert_retention_rule(
         session.add(rule)
     write_audit_log(
         session,
-        action=AuditAction.project_updated,
-        entity_type="project",
+        action=AuditAction.compliance_retention_set,
+        entity_type="retention_rule",
         actor_user_id=actor.id,
         entity_id=project.id,
         project_id=project.id,
@@ -310,8 +310,8 @@ def delete_retention_rule(
         session.delete(rule)
         write_audit_log(
             session,
-            action=AuditAction.project_updated,
-            entity_type="project",
+            action=AuditAction.compliance_retention_removed,
+            entity_type="retention_rule",
             actor_user_id=actor.id,
             entity_id=project.id,
             project_id=project.id,
