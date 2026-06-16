@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { Card, CardInner, ErrorBanner, PageHead, SectionHead, SuccessBanner } from "../../components/ui";
+import { Card, CardInner, ErrorBanner, PageHead, SectionHead } from "../../components/ui";
 import { confirmDialog } from "../../lib/confirm";
 import { useRewrapStorage, useSetLegalHold, useSetRetention } from "./hooks";
 
@@ -19,7 +19,6 @@ function RetentionTool() {
   const setLegalHold = useSetLegalHold();
   const [documentId, setDocumentId] = useState("");
   const [retention, setRetention_] = useState("");
-  const [msg, setMsg] = useState<string | null>(null);
 
   return (
     <Card>
@@ -29,7 +28,6 @@ function RetentionTool() {
           hint="Per Dokument-ID (systemweit, unabhaengig von der Projekt-Mitgliedschaft)."
         />
         <ErrorBanner error={setRetention.error || setLegalHold.error} />
-        {msg && <SuccessBanner>{msg}</SuccessBanner>}
         <label>
           <span>Dokument-ID</span>
           <input
@@ -46,15 +44,13 @@ function RetentionTool() {
           <button
             disabled={!documentId || setRetention.isPending}
             onClick={async () => {
-              setMsg(null);
               try {
                 await setRetention.mutateAsync({
                   documentId,
                   retention_until: retention || null,
                 });
-                setMsg("Aufbewahrungsdatum gesetzt.");
               } catch {
-                /* Fehler via setRetention.error im ErrorBanner */
+                /* Erfolg/Fehler via Toast bzw. setRetention.error im ErrorBanner */
               }
             }}
           >
@@ -65,12 +61,10 @@ function RetentionTool() {
           <button
             disabled={!documentId || setLegalHold.isPending}
             onClick={async () => {
-              setMsg(null);
               try {
                 await setLegalHold.mutateAsync({ documentId, legal_hold: true });
-                setMsg("Legal Hold aktiviert.");
               } catch {
-                /* Fehler via setLegalHold.error im ErrorBanner */
+                /* Erfolg/Fehler via Toast bzw. setLegalHold.error im ErrorBanner */
               }
             }}
           >
@@ -79,12 +73,10 @@ function RetentionTool() {
           <button
             disabled={!documentId || setLegalHold.isPending}
             onClick={async () => {
-              setMsg(null);
               try {
                 await setLegalHold.mutateAsync({ documentId, legal_hold: false });
-                setMsg("Legal Hold aufgehoben.");
               } catch {
-                /* Fehler via setLegalHold.error im ErrorBanner */
+                /* Erfolg/Fehler via Toast bzw. setLegalHold.error im ErrorBanner */
               }
             }}
           >

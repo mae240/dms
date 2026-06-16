@@ -13,6 +13,8 @@ import {
   SectionHead,
   StatusBadge,
   Tabs,
+  tabId,
+  tabPanelId,
   UploadZone,
 } from "../../components/ui";
 import { useAuth } from "../../lib/auth";
@@ -131,6 +133,7 @@ export function DocumentDetailPage() {
 
       <Card>
         <Tabs
+          idBase="doc-detail"
           tabs={[
             { id: "versionen", label: "Versionen" },
             { id: "metadaten", label: "Metadaten" },
@@ -140,7 +143,11 @@ export function DocumentDetailPage() {
         />
         <CardInner>
           {tab === "versionen" ? (
-            <div role="tabpanel">
+            <div
+              role="tabpanel"
+              id={tabPanelId("doc-detail", "versionen")}
+              aria-labelledby={tabId("doc-detail", "versionen")}
+            >
               <VersionsPanel
                 doc={d}
                 canEdit={canEdit}
@@ -149,7 +156,11 @@ export function DocumentDetailPage() {
               />
             </div>
           ) : (
-            <div role="tabpanel">
+            <div
+              role="tabpanel"
+              id={tabPanelId("doc-detail", "metadaten")}
+              aria-labelledby={tabId("doc-detail", "metadaten")}
+            >
               <MetadataPanel doc={d} canEdit={canEdit} canManage={canManage} />
             </div>
           )}
@@ -492,7 +503,11 @@ function MetadataEditor({
 
   async function onSave(e: React.FormEvent) {
     e.preventDefault();
-    await patch.mutateAsync({ title, description, category, status });
+    try {
+      await patch.mutateAsync({ title, description, category, status });
+    } catch {
+      // Fehler wird ueber patch.error/ErrorBanner angezeigt.
+    }
   }
 
   return (

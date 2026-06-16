@@ -5,13 +5,14 @@ import { Card, CardInner, ErrorBanner } from "../../components/ui";
 import { useAuth } from "../../lib/auth";
 
 export function LoginPage() {
-  const { user, login } = useAuth();
+  const { user, loading, login } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
 
+  if (loading) return <div className="empty">Lade …</div>;
   if (user) return <Navigate to="/dashboard" replace />;
 
   async function onSubmit(e: React.FormEvent) {

@@ -48,8 +48,22 @@ export function Card({ children, className }: { children: ReactNode; className?:
   return <div className={`card${className ? ` ${className}` : ""}`}>{children}</div>;
 }
 
-export function CardInner({ children }: { children: ReactNode }) {
-  return <div className="card-inner">{children}</div>;
+export function CardInner({
+  children,
+  role,
+  id,
+  "aria-labelledby": ariaLabelledby,
+}: {
+  children: ReactNode;
+  role?: string;
+  id?: string;
+  "aria-labelledby"?: string;
+}) {
+  return (
+    <div className="card-inner" role={role} id={id} aria-labelledby={ariaLabelledby}>
+      {children}
+    </div>
+  );
 }
 
 export function SectionHead({
@@ -119,29 +133,44 @@ export function KpiCard({
 }
 
 /**
- * Tab-Leiste. Konsumenten sollten ihren zugehoerigen Panel-Container mit
- * `role="tabpanel"` sowie `id={`${...}-panel-${id}`}` rendern, passend zur
- * `aria-controls`-Verknuepfung der jeweiligen Tab-Buttons.
+ * Tab-Leiste. Damit Tabs und Tabpanels barrierefrei verknuepft sind, sollte ein
+ * stabiler `idBase` uebergeben werden: Tab-Buttons erhalten `id={`${idBase}-tab-${id}`}`
+ * und `aria-controls={`${idBase}-panel-${id}`}`. Konsumenten rendern den zugehoerigen
+ * Panel-Container dann mit `role="tabpanel"`, `id={`${idBase}-panel-${id}`}` und
+ * `aria-labelledby={`${idBase}-tab-${id}`}`. Die Helfer `tabPanelId`/`tabId` erzeugen
+ * dieselben Konventions-IDs. Ohne `idBase` wird eine interne (instabile) ID genutzt.
  */
+export function tabId(base: string, id: string) {
+  return `${base}-tab-${id}`;
+}
+
+export function tabPanelId(base: string, id: string) {
+  return `${base}-panel-${id}`;
+}
+
 export function Tabs<T extends string>({
   tabs,
   value,
   onChange,
+  idBase,
 }: {
   tabs: { id: T; label: string }[];
   value: T;
   onChange: (id: T) => void;
+  idBase?: string;
 }) {
   const uid = useId();
+  const base = idBase ?? uid;
   return (
     <div className="tabs" role="tablist">
       {tabs.map((t) => (
         <button
           key={t.id}
-          id={`${uid}-tab-${t.id}`}
+          type="button"
+          id={tabId(base, t.id)}
           role="tab"
           aria-selected={t.id === value}
-          aria-controls={`${uid}-panel-${t.id}`}
+          aria-controls={tabPanelId(base, t.id)}
           className={`tab${t.id === value ? " active" : ""}`}
           onClick={() => onChange(t.id)}
         >

@@ -178,6 +178,7 @@ function CreateUserForm() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                autoComplete="off"
                 required
               />
             </label>
@@ -191,6 +192,7 @@ function CreateUserForm() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                autoComplete="new-password"
                 minLength={8}
                 required
               />
