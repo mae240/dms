@@ -1,6 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api, uploadWithProgress } from "../../lib/apiClient";
+import { PAGE_SIZE } from "../../lib/constants";
 import { toast } from "../../lib/toast";
 import type {
   DocumentDetailOut,
@@ -17,7 +18,9 @@ import type {
   RetentionRuleOut,
 } from "../../types/api";
 
-export const PAGE_SIZE = 25;
+// PAGE_SIZE liegt zentral in lib/constants; hier re-exportiert, damit bestehende
+// Importe aus diesem Modul (ProjectsPage/ProjectDetailPage) unveraendert bleiben.
+export { PAGE_SIZE };
 
 export function useProjects(status?: ProjectStatus, limit = PAGE_SIZE, offset = 0) {
   const q = new URLSearchParams({ limit: String(limit), offset: String(offset) });

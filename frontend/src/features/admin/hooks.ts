@@ -1,6 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "../../lib/apiClient";
+import { PAGE_SIZE } from "../../lib/constants";
 import { toast } from "../../lib/toast";
 import type {
   AdminUserOut,
@@ -10,7 +11,8 @@ import type {
   Page,
 } from "../../types/api";
 
-export const PAGE_SIZE = 25;
+// Re-Export, damit bestehende Importe (z. B. AuditLogsPage) stabil bleiben.
+export { PAGE_SIZE };
 
 export function useAdminUsers(limit = PAGE_SIZE, offset = 0) {
   return useQuery({

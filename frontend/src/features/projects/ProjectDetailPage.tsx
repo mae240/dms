@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { Fragment, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
@@ -14,6 +15,8 @@ import {
   SectionHead,
   StatusBadge,
   Tabs,
+  tabId,
+  tabPanelId,
   UploadZone,
 } from "../../components/ui";
 import { roleAtLeast } from "../../lib/can";
@@ -80,6 +83,7 @@ function ProjectSettings({ project }: { project: ProjectDetailOut }) {
   const update = useUpdateProject(project.id);
   const del = useDeleteProject();
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const [name, setName] = useState(project.name);
   const [description, setDescription] = useState(project.description ?? "");
   const isOwner = project.my_role === "owner";
@@ -87,7 +91,31 @@ function ProjectSettings({ project }: { project: ProjectDetailOut }) {
 
   async function onSave(e: React.FormEvent) {
     e.preventDefault();
-    await update.mutateAsync({ name, description });
+    try {
+      await update.mutateAsync({ name, description });
+    } catch {
+      // Fehler wird ueber update.error/ErrorBanner angezeigt.
+    }
+  }
+
+  async function onDelete() {
+    const ok = await confirmDialog({
+      title: "Projekt loeschen",
+      message: "Projekt in den Papierkorb verschieben? Es bleibt wiederherstellbar.",
+      confirmLabel: "Loeschen",
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await del.mutateAsync(project.id);
+      // Detail-Query stoppen/entfernen, damit kein 404-Refetch auf das geloeschte
+      // Projekt laeuft, sobald wir wegnavigieren.
+      await qc.cancelQueries({ queryKey: ["project", project.id] });
+      qc.removeQueries({ queryKey: ["project", project.id] });
+      navigate("/projects");
+    } catch {
+      // Fehler wird ueber del.error/ErrorBanner angezeigt.
+    }
   }
 
   return (
@@ -120,19 +148,7 @@ function ProjectSettings({ project }: { project: ProjectDetailOut }) {
                 type="button"
                 className="danger"
                 disabled={del.isPending}
-                onClick={async () => {
-                  const ok = await confirmDialog({
-                    title: "Projekt loeschen",
-                    message:
-                      "Projekt in den Papierkorb verschieben? Es bleibt wiederherstellbar.",
-                    confirmLabel: "Loeschen",
-                    danger: true,
-                  });
-                  if (ok) {
-                    await del.mutateAsync(project.id);
-                    navigate("/projects");
-                  }
-                }}
+                onClick={onDelete}
               >
                 Loeschen
               </button>
@@ -445,8 +461,12 @@ function DocumentsCard({ projectId }: { projectId: string }) {
 
   return (
     <Card>
-      <Tabs tabs={VIEWS} value={view} onChange={switchView} />
-      <CardInner>
+      <Tabs idBase="project-docs" tabs={VIEWS} value={view} onChange={switchView} />
+      <CardInner
+        role="tabpanel"
+        id={tabPanelId("project-docs", view)}
+        aria-labelledby={tabId("project-docs", view)}
+      >
         <SectionHead title="Dokumente" />
         <div className="toolbar">
           <input
