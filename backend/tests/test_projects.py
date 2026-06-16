@@ -209,9 +209,7 @@ def test_set_list_and_delete_retention_rule(client: TestClient, db_session: Sess
     )
     assert res.status_code == 200, res.text
     # listen
-    rules = client.get(
-        f"/api/projects/{pid}/retention-rules", headers=headers
-    ).json()
+    rules = client.get(f"/api/projects/{pid}/retention-rules", headers=headers).json()
     assert {r["category"] for r in rules} == {None, "Rechnung"}
     # AUS-Schalter: Projekt-Default loeschen
     res = client.request(
@@ -221,9 +219,7 @@ def test_set_list_and_delete_retention_rule(client: TestClient, db_session: Sess
         headers=headers,
     )
     assert res.status_code == 204
-    rules = client.get(
-        f"/api/projects/{pid}/retention-rules", headers=headers
-    ).json()
+    rules = client.get(f"/api/projects/{pid}/retention-rules", headers=headers).json()
     assert {r["category"] for r in rules} == {"Rechnung"}
 
 

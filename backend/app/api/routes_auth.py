@@ -39,9 +39,7 @@ def register_first_admin(
 
 
 @router.post("/login", response_model=TokenOut)
-def login(
-    body: LoginIn, request: Request, response: Response, session: SessionDep
-) -> TokenOut:
+def login(body: LoginIn, request: Request, response: Response, session: SessionDep) -> TokenOut:
     ip = get_client_ip(request)
     enforce_rate_limit("login", ip, limit=settings.auth_rate_limit_per_minute)
     try:

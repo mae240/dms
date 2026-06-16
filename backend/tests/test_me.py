@@ -9,9 +9,7 @@ from dms_core.enums import DocumentStatus
 from tests.factories import bearer, make_document, make_project, make_user
 
 
-def test_recent_documents_scoped_to_membership(
-    client: TestClient, db_session: Session
-) -> None:
+def test_recent_documents_scoped_to_membership(client: TestClient, db_session: Session) -> None:
     owner = make_user(db_session, "rec-owner@example.com")
     outsider = make_user(db_session, "rec-outsider@example.com")
 

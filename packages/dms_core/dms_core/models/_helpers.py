@@ -15,9 +15,7 @@ from sqlmodel import Field
 
 def pk_field() -> Any:
     """UUIDv4 Primary Key (server-/client-seitig generiert, nicht erratbar)."""
-    return Field(
-        sa_column=Column(Uuid(), primary_key=True, default=uuid.uuid4, nullable=False)
-    )
+    return Field(sa_column=Column(Uuid(), primary_key=True, default=uuid.uuid4, nullable=False))
 
 
 def fk_uuid(

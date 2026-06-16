@@ -14,6 +14,8 @@ dms-core = { workspace = true }
 target-version = "py312"
 line-length = 100
 src = ["packages/dms_core", "backend", "worker"]
+# Alembic-Migrationen sind autogeneriert — nicht (um-)formatieren.
+extend-exclude = ["alembic/versions"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "C4", "SIM", "TID"]

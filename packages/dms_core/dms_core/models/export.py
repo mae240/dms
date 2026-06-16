@@ -19,15 +19,11 @@ from dms_core.models._helpers import created_at_field, fk_uuid, pk_field
 
 class UserExport(SQLModel, table=True):
     __tablename__ = "user_exports"
-    __table_args__ = (
-        CheckConstraint(f"status {enum_check(ExportStatus)}", name="status_valid"),
-    )
+    __table_args__ = (CheckConstraint(f"status {enum_check(ExportStatus)}", name="status_valid"),)
 
     id: uuid.UUID = pk_field()
     # Person, deren Daten exportiert werden:
-    subject_user_id: uuid.UUID = fk_uuid(
-        "users.id", nullable=False, ondelete="CASCADE", index=True
-    )
+    subject_user_id: uuid.UUID = fk_uuid("users.id", nullable=False, ondelete="CASCADE", index=True)
     # Admin, der den Export ausgeloest hat:
     requested_by: uuid.UUID = fk_uuid("users.id", nullable=False, ondelete="RESTRICT")
     status: str = Field(

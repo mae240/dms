@@ -112,6 +112,7 @@ def test_active_key_must_be_in_ring() -> None:
 
 # ---- Rotation / Re-Wrap ----
 
+
 def test_rewrap_migrates_to_active_key_and_preserves_content() -> None:
     payload = os.urandom(64 * 1024 + 5)
     inner = _MemBackend()
@@ -136,6 +137,7 @@ def test_rewrap_unknown_version_fails() -> None:
 
 
 # ---- Factory-Verdrahtung ----
+
 
 def test_factory_wraps_when_keyring_set(monkeypatch) -> None:  # noqa: ANN001
     import base64

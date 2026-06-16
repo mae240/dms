@@ -64,9 +64,7 @@ def main() -> None:
         _get_or_create_user(
             session, ADMIN_EMAIL, full_name="Admin", password=ADMIN_PASSWORD, superadmin=True
         )
-        _get_or_create_user(
-            session, TEST_EMAIL, full_name="Test User", password=TEST_PASSWORD
-        )
+        _get_or_create_user(session, TEST_EMAIL, full_name="Test User", password=TEST_PASSWORD)
         session.commit()
 
     # Passwoerter NICHT im Klartext ausgeben (Schulter-Surfing / Logs).

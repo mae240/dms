@@ -44,8 +44,6 @@ def paginate(
     eigene order_by/limit/offset-Klausel auf Count-Ebene sein; die Reihenfolge
     fuer die Page wird vom Aufrufer per .order_by am stmt gesetzt.
     """
-    total = session.exec(
-        select(func.count()).select_from(stmt.order_by(None).subquery())
-    ).one()
+    total = session.exec(select(func.count()).select_from(stmt.order_by(None).subquery())).one()
     rows = session.exec(stmt.limit(limit).offset(offset)).all()
     return list(rows), total

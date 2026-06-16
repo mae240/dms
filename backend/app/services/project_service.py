@@ -58,9 +58,7 @@ def list_my_projects(
         .join(Project, Project.id == ProjectMember.project_id)
         .where(*conditions)
     ).one()
-    rows = session.exec(
-        base.order_by(Project.created_at.desc()).limit(limit).offset(offset)
-    ).all()
+    rows = session.exec(base.order_by(Project.created_at.desc()).limit(limit).offset(offset)).all()
     return list(rows), total
 
 
@@ -124,12 +122,11 @@ def soft_delete_project(
     return project
 
 
-def restore_project(
-    session: Session, *, project: Project, actor: User, ip: str | None
-) -> Project:
+def restore_project(session: Session, *, project: Project, actor: User, ip: str | None) -> Project:
     if project.status != ProjectStatus.deleted:
-        raise bad_request("Nur geloeschte Projekte koennen wiederhergestellt werden",
-                          code="not_deleted")
+        raise bad_request(
+            "Nur geloeschte Projekte koennen wiederhergestellt werden", code="not_deleted"
+        )
     project.status = ProjectStatus.active
     project.deleted_at = None
     session.add(project)

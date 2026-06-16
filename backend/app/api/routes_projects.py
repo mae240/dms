@@ -44,9 +44,7 @@ def list_projects(
     rows, total = project_service.list_my_projects(
         session, user=user, limit=limit, offset=offset, status=status
     )
-    items = [
-        ProjectOut.model_validate(p).model_copy(update={"my_role": role}) for p, role in rows
-    ]
+    items = [ProjectOut.model_validate(p).model_copy(update={"my_role": role}) for p, role in rows]
     return Page(items=items, total=total, limit=limit, offset=offset)
 
 
@@ -115,9 +113,7 @@ def get_project(ctx: ViewerCtx, session: SessionDep) -> ProjectDetailOut:
     return ProjectDetailOut(**base.model_dump(), members=members)
 
 
-@router.post(
-    "/{project_id}/members", response_model=MemberOut, status_code=status.HTTP_201_CREATED
-)
+@router.post("/{project_id}/members", response_model=MemberOut, status_code=status.HTTP_201_CREATED)
 def add_member(
     body: MemberAddIn, ctx: AdminCtx, request: Request, session: SessionDep
 ) -> MemberOut:
