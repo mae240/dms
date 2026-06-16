@@ -11,6 +11,7 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import logging
 import uuid
 from datetime import UTC, date, datetime, timedelta
 
@@ -27,6 +28,8 @@ from dms_core.models.export import UserExport
 from dms_core.models.project import Project, ProjectMember, RetentionRule
 from dms_core.models.user import User
 from dms_core.storage import StorageBackend, StorageError
+
+logger = logging.getLogger(__name__)
 
 PURGE_BATCH = 200
 
@@ -165,7 +168,36 @@ def build_export_payload(session: Session, subject_id: uuid.UUID) -> dict:
     versions = session.exec(
         select(DocumentVersion).where(DocumentVersion.created_by == subject_id)
     ).all()
-    audit = session.exec(select(AuditLog).where(AuditLog.actor_user_id == subject_id)).all()
+
+    # Audit-Events koennen pro Subjekt sehr zahlreich sein -> gebatcht einlesen
+    # (LIMIT/OFFSET via stabiler id-Sortierung) und inkrementell in die Payload
+    # schreiben, statt alle Zeilen gleichzeitig zu materialisieren. Das Ausgabe-
+    # Format (Liste 'audit_events') bleibt unveraendert.
+    audit_events: list[dict] = []
+    offset = 0
+    while True:
+        batch = session.exec(
+            select(AuditLog)
+            .where(AuditLog.actor_user_id == subject_id)
+            .order_by(AuditLog.id)
+            .limit(PURGE_BATCH)
+            .offset(offset)
+        ).all()
+        if not batch:
+            break
+        audit_events.extend(
+            {
+                "action": a.action,
+                "entity_type": a.entity_type,
+                "entity_id": a.entity_id,
+                "project_id": a.project_id,
+                "created_at": a.created_at,
+            }
+            for a in batch
+        )
+        offset += len(batch)
+        if len(batch) < PURGE_BATCH:
+            break
 
     return {
         "generated_at": datetime.now(UTC).isoformat(),
@@ -206,16 +238,7 @@ def build_export_payload(session: Session, subject_id: uuid.UUID) -> dict:
             }
             for v in versions
         ],
-        "audit_events": [
-            {
-                "action": a.action,
-                "entity_type": a.entity_type,
-                "entity_id": a.entity_id,
-                "project_id": a.project_id,
-                "created_at": a.created_at,
-            }
-            for a in audit
-        ],
+        "audit_events": audit_events,
     }
 
 
@@ -237,9 +260,12 @@ def produce_export(session: Session, export_id: uuid.UUID, export_storage: Stora
         session.add(export)
         session.flush()
         return "ready"
-    except Exception as exc:  # noqa: BLE001
+    except Exception:  # noqa: BLE001
+        # Technische Details nur server-seitig loggen, nie an den Client/Admin
+        # zurueckgeben (Pfad-/Detail-Leak vermeiden).
+        logger.exception("Export %s fehlgeschlagen", export_id)
         export.status = ExportStatus.failed
-        export.error = f"Export fehlgeschlagen: {exc}"[:1000]
+        export.error = "Export fehlgeschlagen"
         session.add(export)
         session.flush()
         return "failed"
@@ -282,16 +308,32 @@ def rewrap_blobs(session: Session, storage: object) -> dict[str, int]:
     damit dms_core nicht hart von EncryptedStorageBackend abhaengt."""
     if not hasattr(storage, "rewrap"):
         return {"rewrapped": 0, "skipped": 0, "errors": 0}
-    keys = [v.storage_key for v in session.exec(select(DocumentVersion)).all()]
     rewrapped = skipped = errors = 0
-    for key in keys:
-        try:
-            if storage.rewrap(key):
-                rewrapped += 1
-            else:
-                skipped += 1
-        except StorageError:
-            errors += 1  # einzelner Blob blockiert die Rotation nicht
+    # Gebatcht via stabiler Sortierung (id) + LIMIT/OFFSET, damit nicht alle
+    # storage_keys auf einmal in den RAM geladen werden (gleiches Batch-Prinzip
+    # wie purge_deleted_documents). rewrap aendert keine Selektionskriterien,
+    # daher ist OFFSET-Paging hier korrekt.
+    offset = 0
+    while True:
+        keys = session.exec(
+            select(DocumentVersion.storage_key)
+            .order_by(DocumentVersion.id)
+            .limit(PURGE_BATCH)
+            .offset(offset)
+        ).all()
+        if not keys:
+            break
+        for key in keys:
+            try:
+                if storage.rewrap(key):
+                    rewrapped += 1
+                else:
+                    skipped += 1
+            except StorageError:
+                errors += 1  # einzelner Blob blockiert die Rotation nicht
+        offset += len(keys)
+        if len(keys) < PURGE_BATCH:
+            break
     return {"rewrapped": rewrapped, "skipped": skipped, "errors": errors}
 
 

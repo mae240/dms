@@ -28,7 +28,13 @@ from app.schemas.document import (
 )
 from app.services import compliance_service, document_service
 from dms_core.audit import write_audit_log
-from dms_core.enums import AuditAction, DocumentStatus, ProcessingStatus, ProjectRole
+from dms_core.enums import (
+    AuditAction,
+    DocumentStatus,
+    ProcessingStatus,
+    ProjectRole,
+    role_satisfies,
+)
 from dms_core.models.document import Document, DocumentVersion
 from dms_core.storage import get_storage
 
@@ -66,6 +72,9 @@ def list_documents(
     search: str | None = Query(default=None, max_length=200),
     status: str | None = Query(default=None, pattern="^(active|archived|deleted)$"),
 ) -> Page[DocumentListItem]:
+    # Papierkorb (status=deleted) nur fuer Projekt-Admin/Owner sichtbar, nicht fuer viewer/editor.
+    if status == DocumentStatus.deleted and not role_satisfies(ctx.role, ProjectRole.admin):
+        raise forbidden("Rolle fuer diese Aktion unzureichend")
     items, total = document_service.list_documents(
         session,
         project_id=ctx.project.id,

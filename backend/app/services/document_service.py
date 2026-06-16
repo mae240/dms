@@ -71,11 +71,21 @@ def _store_upload(
     )
 
 
+def _escape_like(value: str) -> str:
+    """ILIKE-Metacharaktere escapen, damit der Suchbegriff literal gematcht wird."""
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 def _new_version(
-    *, document_id: uuid.UUID, version_number: int, blob: StoredBlob, actor: User
+    *,
+    version_id: uuid.UUID,
+    document_id: uuid.UUID,
+    version_number: int,
+    blob: StoredBlob,
+    actor: User,
 ) -> DocumentVersion:
     return DocumentVersion(
-        id=uuid.uuid4(),
+        id=version_id,
         document_id=document_id,
         version_number=version_number,
         file_name=blob.file_name,
@@ -116,17 +126,12 @@ def create_document_with_version(
     )
     version_id = uuid.uuid4()
     blob = _store_upload(upload, document_id=document.id, version_id=version_id)
-    version = DocumentVersion(
-        id=version_id,
+    version = _new_version(
+        version_id=version_id,
         document_id=document.id,
         version_number=1,
-        file_name=blob.file_name,
-        file_hash=blob.sha256,
-        storage_key=blob.storage_key,
-        mime_type=blob.mime_type,
-        size_bytes=blob.size_bytes,
-        processing_status=ProcessingStatus.uploaded,
-        created_by=actor.id,
+        blob=blob,
+        actor=actor,
     )
     session.add(document)
     session.add(version)
@@ -177,8 +182,13 @@ def add_version(
 
     version_id = uuid.uuid4()
     blob = _store_upload(upload, document_id=document.id, version_id=version_id)
-    version = _new_version(document_id=document.id, version_number=next_num, blob=blob, actor=actor)
-    version.id = version_id
+    version = _new_version(
+        version_id=version_id,
+        document_id=document.id,
+        version_number=next_num,
+        blob=blob,
+        actor=actor,
+    )
     session.add(version)
     session.flush()
 
@@ -231,7 +241,8 @@ def list_documents(
         # Default: aktive + archivierte, ohne Papierkorb.
         conditions.append(Document.status != DocumentStatus.deleted)
     if search:
-        conditions.append(Document.title.ilike(f"%{search}%"))
+        escaped = _escape_like(search)
+        conditions.append(Document.title.ilike(f"%{escaped}%", escape="\\"))
 
     docs, total = paginate(
         session,

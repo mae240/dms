@@ -41,6 +41,12 @@ def soft_delete_document(
         raise conflict(
             "Dokument steht unter Legal Hold und kann nicht geloescht werden", code="legal_hold"
         )
+    # Mindest-Aufbewahrung (G-3): solange retention_until in der Zukunft liegt, ist
+    # kein Loeschen erlaubt — auch legal_hold umgeht das nicht.
+    if document.retention_until is not None and document.retention_until > date.today():
+        raise conflict(
+            "Mindest-Aufbewahrungsfrist noch nicht abgelaufen", code="retention_active"
+        )
 
     now = datetime.now(UTC)
     document.status = DocumentStatus.deleted

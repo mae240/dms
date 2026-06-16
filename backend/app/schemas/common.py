@@ -18,6 +18,13 @@ class ORMModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+def normalize_email(v: str) -> str:
+    v = v.strip().lower()
+    if "@" not in v or "." not in v.split("@")[-1]:
+        raise ValueError("Ungueltige E-Mail-Adresse")
+    return v
+
+
 class Page(BaseModel, Generic[T]):
     """Einheitliche, paginierte Antwort fuer Listen-Endpunkte."""
 

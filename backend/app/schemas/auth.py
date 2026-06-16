@@ -5,31 +5,27 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
-from app.schemas.common import ORMModel
-
-
-def _normalize_email(v: str) -> str:
-    v = v.strip().lower()
-    if "@" not in v or "." not in v.split("@")[-1]:
-        raise ValueError("Ungueltige E-Mail-Adresse")
-    return v
+from app.schemas.common import ORMModel, normalize_email
 
 
 class RegisterFirstAdminIn(BaseModel):
-    email: str
+    email: EmailStr
     password: str = Field(min_length=8, max_length=256)
     full_name: str = Field(default="", max_length=200)
 
-    _norm = field_validator("email")(_normalize_email)
+    # mode="before": strip/lower laeuft vor der EmailStr-Formatvalidierung.
+    _norm = field_validator("email", mode="before")(normalize_email)
 
 
 class LoginIn(BaseModel):
+    # Bewusst nur normalisiert (kein EmailStr): ungueltige Eingaben sollen am
+    # Login einheitlich als 401 enden, nicht als 422 (keine Format-Auskunft).
     email: str
     password: str = Field(min_length=1, max_length=256)
 
-    _norm = field_validator("email")(_normalize_email)
+    _norm = field_validator("email")(normalize_email)
 
 
 class ChangePasswordIn(BaseModel):
