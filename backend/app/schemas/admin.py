@@ -6,25 +6,19 @@ import uuid
 from datetime import date, datetime
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
-from app.schemas.common import ORMModel
-
-
-def _normalize_email(v: str) -> str:
-    v = v.strip().lower()
-    if "@" not in v or "." not in v.split("@")[-1]:
-        raise ValueError("Ungueltige E-Mail-Adresse")
-    return v
+from app.schemas.common import ORMModel, normalize_email
 
 
 class AdminUserCreate(BaseModel):
-    email: str
+    email: EmailStr
     password: str = Field(min_length=8, max_length=256)
     full_name: str = Field(default="", max_length=200)
     is_superadmin: bool = False
 
-    _norm = field_validator("email")(_normalize_email)
+    # mode="before": strip/lower laeuft vor der EmailStr-Formatvalidierung.
+    _norm = field_validator("email", mode="before")(normalize_email)
 
 
 class RetentionSetIn(BaseModel):

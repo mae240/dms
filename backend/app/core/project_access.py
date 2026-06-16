@@ -21,7 +21,7 @@ from sqlmodel import Session, select
 
 from app.core.deps import CurrentUser, SessionDep
 from app.core.errors import forbidden, not_found
-from dms_core.enums import role_satisfies
+from dms_core.enums import ProjectStatus, role_satisfies
 from dms_core.models.document import Document, DocumentVersion
 from dms_core.models.project import Project, ProjectMember
 from dms_core.models.user import User
@@ -54,7 +54,7 @@ def require_project_role(
 ) -> Callable[..., ProjectContext]:
     def dependency(project_id: uuid.UUID, user: CurrentUser, session: SessionDep) -> ProjectContext:
         project = session.get(Project, project_id)
-        if project is None or (project.deleted_at is not None and not allow_deleted):
+        if project is None or (project.status == ProjectStatus.deleted and not allow_deleted):
             raise not_found("Projekt nicht gefunden")
 
         membership = session.exec(
@@ -90,6 +90,9 @@ def require_document_role(min_role: str) -> Callable[..., DocumentContext]:
         document = session.get(Document, document_id)
         if document is None:
             raise not_found("Dokument nicht gefunden")
+        project = session.get(Project, document.project_id)
+        if project is None or project.status == ProjectStatus.deleted:
+            raise not_found("Dokument nicht gefunden")  # geloeschtes Projekt -> kein Zugriff
         membership = get_membership(session, document.project_id, user.id)
         if membership is None:
             raise not_found("Dokument nicht gefunden")  # Existenz nicht verraten
@@ -108,6 +111,9 @@ def require_version_access(min_role: str) -> Callable[..., VersionContext]:
         document = session.get(Document, version.document_id)
         if document is None:
             raise not_found("Version nicht gefunden")
+        project = session.get(Project, document.project_id)
+        if project is None or project.status == ProjectStatus.deleted:
+            raise not_found("Version nicht gefunden")  # geloeschtes Projekt -> kein Zugriff
         membership = get_membership(session, document.project_id, user.id)
         if membership is None:
             raise not_found("Version nicht gefunden")

@@ -102,7 +102,10 @@ def authenticate(
             # ohne PII (Datenminimierung Art. 5).
             metadata={"email_sha256": hashlib.sha256(email.lower().encode()).hexdigest()},
         )
-        session.commit()  # Audit-Eintrag des Fehlversuchs persistieren
+        # flush() statt commit(): der Audit-Eintrag liegt damit in der Session.
+        # Die Route committed ihn im except-Zweig, sonst ginge er beim
+        # Request-Rollback verloren (Commit gehoert in die Route).
+        session.flush()
         raise unauthorized("Ungueltige Zugangsdaten", code="invalid_credentials")
 
     # Passwort-Hash bei Bedarf auf aktuelle Parameter heben.

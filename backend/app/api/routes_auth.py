@@ -8,7 +8,7 @@ from fastapi import APIRouter, Request, Response, status
 
 from app.core.cookies import clear_refresh_cookie, set_refresh_cookie
 from app.core.deps import CurrentUser, SessionDep, get_client_ip
-from app.core.errors import unauthorized
+from app.core.errors import ApiError, unauthorized
 from app.core.ratelimit import enforce_rate_limit
 from app.schemas.auth import ChangePasswordIn, LoginIn, RegisterFirstAdminIn, TokenOut
 from app.services import auth_service
@@ -44,13 +44,19 @@ def login(
 ) -> TokenOut:
     ip = get_client_ip(request)
     enforce_rate_limit("login", ip, limit=settings.auth_rate_limit_per_minute)
-    user, refresh = auth_service.authenticate(
-        session,
-        email=body.email,
-        password=body.password,
-        ip=ip,
-        user_agent=request.headers.get("user-agent"),
-    )
+    try:
+        user, refresh = auth_service.authenticate(
+            session,
+            email=body.email,
+            password=body.password,
+            ip=ip,
+            user_agent=request.headers.get("user-agent"),
+        )
+    except ApiError:
+        # Fehlversuch-Audit persistieren (authenticate() hat ihn geflusht),
+        # danach den Fehler unveraendert weiterreichen.
+        session.commit()
+        raise
     session.commit()
     set_refresh_cookie(response, refresh)
     return _token_response(auth_service.issue_access_token(user))
@@ -79,12 +85,14 @@ def change_password(
     response: Response,
     session: SessionDep,
 ) -> TokenOut:
+    ip = get_client_ip(request)
+    enforce_rate_limit("change-password", ip, limit=5)
     refresh = auth_service.change_password(
         session,
         user=user,
         current_password=body.current_password,
         new_password=body.new_password,
-        ip=get_client_ip(request),
+        ip=ip,
         user_agent=request.headers.get("user-agent"),
     )
     session.commit()

@@ -16,7 +16,21 @@ services:
     environment:
       ENVIRONMENT: production
       RUN_MIGRATIONS: "false"
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+      # nginx ist einziger Eintrittspunkt -> X-Forwarded-For vertrauen, damit
+      # Rate-Limiting/Audit die echte Client-IP sehen (nicht die nginx-Container-IP).
+      TRUST_PROXY_HEADERS: "true"
+    # --proxy-headers + --forwarded-allow-ips: uvicorn akzeptiert X-Forwarded-*
+    # nur vom vorgelagerten nginx. Backend ist nicht direkt exponiert (siehe ports),
+    # daher ist '*' hier vertretbar; bei Bedarf auf das nginx-Upstream-Subnetz einengen.
+    command:
+      - "uvicorn"
+      - "app.main:app"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8000"
+      - "--proxy-headers"
+      - "--forwarded-allow-ips=*"
     # In Produktion keinen Host-Port veroeffentlichen; Zugriff nur ueber nginx.
     ports: !reset []
 

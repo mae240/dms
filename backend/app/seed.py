@@ -69,9 +69,10 @@ def main() -> None:
         )
         session.commit()
 
-    print("\nFertig. Login:")
-    print(f"  Admin : {ADMIN_EMAIL} / {ADMIN_PASSWORD}")
-    print(f"  Test  : {TEST_EMAIL} / {TEST_PASSWORD}")
+    # Passwoerter NICHT im Klartext ausgeben (Schulter-Surfing / Logs).
+    print("\nFertig. Login (Passwoerter siehe SEED_*_PASSWORD bzw. Dev-Default):")
+    print(f"  Admin : {ADMIN_EMAIL} / *****")
+    print(f"  Test  : {TEST_EMAIL} / *****")
 
 
 if __name__ == "__main__":

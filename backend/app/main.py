@@ -9,7 +9,9 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+from starlette.requests import Request
+from starlette.responses import Response
 
 from app.api import api_router
 from app.core.errors import register_error_handlers
@@ -17,7 +19,7 @@ from dms_core.config import settings
 
 
 def _add_security_headers(app: FastAPI) -> None:
-    async def middleware(request, call_next):  # type: ignore[no-untyped-def]
+    async def middleware(request: Request, call_next: RequestResponseEndpoint) -> Response:
         response = await call_next(request)
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "DENY")

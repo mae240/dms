@@ -5,9 +5,9 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
-from app.schemas.common import ORMModel
+from app.schemas.common import ORMModel, normalize_email
 from dms_core.enums import ProjectRole
 
 
@@ -33,13 +33,11 @@ class ProjectOut(ORMModel):
 
 
 class MemberAddIn(BaseModel):
-    email: str
+    email: EmailStr
     role: ProjectRole = ProjectRole.viewer
 
-    @field_validator("email")
-    @classmethod
-    def _norm(cls, v: str) -> str:
-        return v.strip().lower()
+    # mode="before": strip/lower laeuft vor der EmailStr-Formatvalidierung.
+    _norm = field_validator("email", mode="before")(normalize_email)
 
 
 class MemberRoleUpdate(BaseModel):
