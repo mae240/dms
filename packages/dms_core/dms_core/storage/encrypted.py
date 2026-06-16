@@ -107,8 +107,11 @@ class EncryptedStorageBackend:
         dek = AESGCM.generate_key(bit_length=256)
         aes = AESGCM(dek)
         wrap_nonce = os.urandom(_NONCE)
-        yield _MAGIC + _KEYID.pack(self._active) + wrap_nonce + self._active_aes.encrypt(
-            wrap_nonce, dek, None
+        yield (
+            _MAGIC
+            + _KEYID.pack(self._active)
+            + wrap_nonce
+            + self._active_aes.encrypt(wrap_nonce, dek, None)
         )
         index = 0
         prev = plaintext.read(_FRAME)
@@ -192,9 +195,10 @@ class EncryptedStorageBackend:
             raise StorageError("DEK-Entschluesselung fehlgeschlagen") from exc
         new_nonce = os.urandom(_NONCE)
         new_header = (
-            _MAGIC + _KEYID.pack(self._active) + new_nonce + self._active_aes.encrypt(
-                new_nonce, dek, None
-            )
+            _MAGIC
+            + _KEYID.pack(self._active)
+            + new_nonce
+            + self._active_aes.encrypt(new_nonce, dek, None)
         )
 
         # Re-wrappten Inhalt vollstaendig in eine Disk-Temp-Datei draining, BEVOR

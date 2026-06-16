@@ -24,9 +24,7 @@ from dms_core.models._helpers import (
 
 class Project(SQLModel, table=True):
     __tablename__ = "projects"
-    __table_args__ = (
-        CheckConstraint(f"status {enum_check(ProjectStatus)}", name="status_valid"),
-    )
+    __table_args__ = (CheckConstraint(f"status {enum_check(ProjectStatus)}", name="status_valid"),)
 
     id: uuid.UUID = pk_field()
     name: str = Field(sa_column=Column(String(200), nullable=False))

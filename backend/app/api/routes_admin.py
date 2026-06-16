@@ -110,9 +110,7 @@ def list_audit_logs(
         project_id=project_id,
         actor_user_id=actor_user_id,
     )
-    return Page(
-        items=[_audit_out(r) for r in rows], total=total, limit=limit, offset=offset
-    )
+    return Page(items=[_audit_out(r) for r in rows], total=total, limit=limit, offset=offset)
 
 
 @router.post(
@@ -179,6 +177,7 @@ def download_export(
 
 # ---- Storage / Key-Rotation (Superadmin) ----
 
+
 @router.post("/storage/rewrap", status_code=status.HTTP_202_ACCEPTED)
 def trigger_rewrap(_admin: SuperadminDep) -> dict:
     """Stoesst die Umschluesselung aller Blobs auf die aktive Key-Version an
@@ -190,6 +189,7 @@ def trigger_rewrap(_admin: SuperadminDep) -> dict:
 
 
 # ---- Dokumentbezogene Compliance-Aktionen (Superadmin, projektunabhaengig) ----
+
 
 @router.post("/documents/{document_id}/set-retention", response_model=DocumentDetailOut)
 def set_retention(

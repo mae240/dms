@@ -63,8 +63,8 @@ def test_category_rule_overrides_default(db_session):  # noqa: ANN001
     project, doc = _project_with_document(db_session, age_days=400, category="Rechnung")
     doc.retention_until = None
     db_session.add(doc)
-    _rule(db_session, project, None, 365)          # Default: loeschen nach 365
-    _rule(db_session, project, "Rechnung", None)   # aber Rechnung = exempt
+    _rule(db_session, project, None, 365)  # Default: loeschen nach 365
+    _rule(db_session, project, "Rechnung", None)  # aber Rechnung = exempt
     assert maintenance.auto_soft_delete_expired(db_session) == 0
     db_session.refresh(doc)
     assert doc.status == "active"
@@ -91,6 +91,7 @@ def test_auto_expire_respects_legal_hold_and_min_retention(db_session):  # noqa:
 
 
 # ---------- Soft-Delete / Restore (API) ----------
+
 
 def test_delete_only_soft_deletes_and_restore(client: TestClient, db_session: Session) -> None:
     owner = make_user(db_session, "o@ex.com")
@@ -134,6 +135,7 @@ def test_legal_hold_blocks_soft_delete(client: TestClient, db_session: Session) 
 
 
 # ---------- Purge (Kernlogik, kritisch) ----------
+
 
 def test_legal_hold_blocks_purge(db_session: Session, tmp_storage) -> None:  # noqa: ANN001
     owner = make_user(db_session, "p1@ex.com")
@@ -210,6 +212,7 @@ def test_grace_period_blocks_purge(db_session: Session, tmp_storage) -> None:  #
 
 # ---------- Export (Art. 15/20) ----------
 
+
 def test_user_export_contains_pii(db_session: Session, tmp_storage, tmp_export_storage) -> None:  # noqa: ANN001
     user = make_user(db_session, "subject@ex.com", full_name="Erika Muster")
     project = make_project(db_session, user)
@@ -275,6 +278,7 @@ def test_cleanup_expired_exports(db_session: Session, tmp_export_storage) -> Non
 
 # ---------- User-Anonymisierung (Art. 17) ----------
 
+
 def test_anonymize_user(client: TestClient, db_session: Session) -> None:
     admin = make_user(db_session, "super2@ex.com", superadmin=True)
     target = make_user(db_session, "victim@ex.com", full_name="Max Ziel")
@@ -300,12 +304,11 @@ def test_anonymize_user(client: TestClient, db_session: Session) -> None:
     assert stored.email.startswith("anonymized-")
 
     # Mitgliedschaften entfernt, Tokens widerrufen.
-    assert db_session.exec(
-        select(ProjectMember).where(ProjectMember.user_id == target.id)
-    ).first() is None
-    token = db_session.exec(
-        select(RefreshToken).where(RefreshToken.user_id == target.id)
-    ).first()
+    assert (
+        db_session.exec(select(ProjectMember).where(ProjectMember.user_id == target.id)).first()
+        is None
+    )
+    token = db_session.exec(select(RefreshToken).where(RefreshToken.user_id == target.id)).first()
     assert token.revoked_at is not None
 
     actions = set(db_session.exec(select(AuditLog.action)).all())
@@ -319,6 +322,7 @@ def test_cannot_anonymize_self(client: TestClient, db_session: Session) -> None:
 
 
 # ---------- Benutzer anlegen (Admin) ----------
+
 
 def test_admin_create_user(client: TestClient, db_session: Session) -> None:
     admin = make_user(db_session, "super5@ex.com", superadmin=True)
@@ -351,6 +355,7 @@ def test_admin_create_user_requires_superadmin(client: TestClient, db_session: S
 
 
 # ---------- Admin-Zugriffsschutz + Audit-IP-Cleanup ----------
+
 
 def test_admin_endpoints_require_superadmin(client: TestClient, db_session: Session) -> None:
     normal = make_user(db_session, "normal@ex.com")

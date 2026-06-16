@@ -1,0 +1,5 @@
+# Projekt-Tooling-Pins (mise). Behebt `make lint`/`make fmt`:
+# ohne gepinnte Version meldet der ruff-Shim "No version is set for shim: ruff".
+# Einmalig installieren: `mise install`.
+[tools]
+ruff = "0.8.4"

@@ -69,9 +69,7 @@ def _admin_url() -> str:
 def engine() -> Generator[Engine, None, None]:
     admin = create_engine(_admin_url(), isolation_level="AUTOCOMMIT")
     with admin.connect() as conn:
-        exists = conn.execute(
-            text("SELECT 1 FROM pg_database WHERE datname = 'dms_test'")
-        ).first()
+        exists = conn.execute(text("SELECT 1 FROM pg_database WHERE datname = 'dms_test'")).first()
         if not exists:
             conn.execute(text("CREATE DATABASE dms_test"))
     admin.dispose()

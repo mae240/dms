@@ -352,9 +352,7 @@ def cleanup_audit_ip(session: Session, retention_days: int) -> int:
         if not batch_ids:
             break
         result = session.exec(
-            update(AuditLog)
-            .where(AuditLog.id.in_(batch_ids))
-            .values(ip_address=None)
+            update(AuditLog).where(AuditLog.id.in_(batch_ids)).values(ip_address=None)
         )
         affected = int(result.rowcount or 0)
         total += affected

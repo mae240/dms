@@ -87,9 +87,7 @@ class DocumentVersion(SQLModel, table=True):
     )
 
     id: uuid.UUID = pk_field()
-    document_id: uuid.UUID = fk_uuid(
-        "documents.id", nullable=False, ondelete="CASCADE", index=True
-    )
+    document_id: uuid.UUID = fk_uuid("documents.id", nullable=False, ondelete="CASCADE", index=True)
     version_number: int = Field(nullable=False)
     # Originaler Dateiname (nur fuer Anzeige/Download-Disposition):
     file_name: str = Field(sa_column=Column(String(400), nullable=False))

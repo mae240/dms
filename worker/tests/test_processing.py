@@ -47,9 +47,7 @@ def test_evaluate_blob_ready_and_extracts_text() -> None:
 
 def test_evaluate_blob_hash_mismatch_is_failed() -> None:
     data = b"inhalt"
-    status, error, _ = evaluate_blob(
-        data, expected_hash="0" * 64, stored_mime="text/plain"
-    )
+    status, error, _ = evaluate_blob(data, expected_hash="0" * 64, stored_mime="text/plain")
     assert status == ProcessingStatus.failed
     assert error and "SHA-256" in error
 
