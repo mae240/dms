@@ -145,7 +145,7 @@ def create_document_with_version(
         entity_id=document.id,
         project_id=project_id,
         ip_address=ip,
-        metadata={"title": title, "file_name": blob.file_name},
+        metadata={"file_name": blob.file_name},
     )
     write_audit_log(
         session,
@@ -321,6 +321,11 @@ def update_metadata(
         document.category = category
         changed["category"] = category
     if status is not None:
+        # Defense-in-Depth: nur active/archived erlaubt. 'deleted' laeuft
+        # ausschliesslich ueber soft_delete, nicht ueber den Metadata-Patch.
+        allowed = {DocumentStatus.active.value, DocumentStatus.archived.value}
+        if status not in allowed:
+            raise bad_request("Ungueltiger Status", code="invalid_status")
         document.status = status
         changed["status"] = status
 

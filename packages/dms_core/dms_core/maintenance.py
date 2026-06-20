@@ -87,7 +87,7 @@ def purge_deleted_documents(session: Session, storage: StorageBackend) -> int:
             actor_user_id=None,
             entity_id=doc.id,
             project_id=doc.project_id,
-            metadata={"versions": len(versions), "title": doc.title},
+            metadata={"versions": len(versions)},
         )
         session.delete(doc)  # CASCADE -> Versions-Zeilen
         purged += 1
@@ -164,10 +164,41 @@ def build_export_payload(session: Session, subject_id: uuid.UUID) -> dict:
     memberships = session.exec(
         select(ProjectMember).where(ProjectMember.user_id == subject_id)
     ).all()
-    documents = session.exec(select(Document).where(Document.created_by == subject_id)).all()
-    versions = session.exec(
-        select(DocumentVersion).where(DocumentVersion.created_by == subject_id)
-    ).all()
+    # Dokumente/Versionen koennen pro Subjekt zahlreich sein -> gebatcht einlesen
+    # (LIMIT/OFFSET via stabiler id-Sortierung), gleiches Muster wie audit_events.
+    documents: list[Document] = []
+    offset = 0
+    while True:
+        batch = session.exec(
+            select(Document)
+            .where(Document.created_by == subject_id)
+            .order_by(Document.id)
+            .limit(PURGE_BATCH)
+            .offset(offset)
+        ).all()
+        if not batch:
+            break
+        documents.extend(batch)
+        offset += len(batch)
+        if len(batch) < PURGE_BATCH:
+            break
+
+    versions: list[DocumentVersion] = []
+    offset = 0
+    while True:
+        batch = session.exec(
+            select(DocumentVersion)
+            .where(DocumentVersion.created_by == subject_id)
+            .order_by(DocumentVersion.id)
+            .limit(PURGE_BATCH)
+            .offset(offset)
+        ).all()
+        if not batch:
+            break
+        versions.extend(batch)
+        offset += len(batch)
+        if len(batch) < PURGE_BATCH:
+            break
 
     # Audit-Events koennen pro Subjekt sehr zahlreich sein -> gebatcht einlesen
     # (LIMIT/OFFSET via stabiler id-Sortierung) und inkrementell in die Payload

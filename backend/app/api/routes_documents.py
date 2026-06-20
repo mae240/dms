@@ -206,6 +206,7 @@ def download_current(ctx: DocViewer, session: SessionDep, request: Request) -> S
     current = document_service.get_current_version(session, ctx.document.id)
     if current is None:
         raise not_found("Keine Version vorhanden")
+    response = _stream_blob(current)
     write_audit_log(
         session,
         action=AuditAction.document_downloaded,
@@ -217,7 +218,7 @@ def download_current(ctx: DocViewer, session: SessionDep, request: Request) -> S
         metadata={"version_number": current.version_number},
     )
     session.commit()
-    return _stream_blob(current)
+    return response
 
 
 @router.post("/versions/{version_id}/reprocess", response_model=VersionOut)
@@ -241,6 +242,7 @@ def download_version(
 ) -> StreamingResponse:
     if ctx.document.status == DocumentStatus.deleted:
         raise not_found("Dokument nicht gefunden")
+    response = _stream_blob(ctx.version)
     write_audit_log(
         session,
         action=AuditAction.document_downloaded,
@@ -252,7 +254,7 @@ def download_version(
         metadata={"version_number": ctx.version.version_number},
     )
     session.commit()
-    return _stream_blob(ctx.version)
+    return response
 
 
 def build_detail(document: Document, current: DocumentVersion | None) -> DocumentDetailOut:
