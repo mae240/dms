@@ -146,6 +146,54 @@ def test_audit_records_document_actions(client: TestClient, db_session: Session)
     } <= actions
 
 
+def test_patch_status_lifecycle_active_archived(client: TestClient, db_session: Session):
+    pid, _owner, editor, *_ = _project_with_roles(client, db_session)
+    doc_id = _upload(client, pid, bearer(editor), TXT).json()["id"]
+
+    # Aktiv -> archiviert.
+    res = client.patch(
+        f"/api/documents/{doc_id}",
+        json={"status": "archived"},
+        headers=bearer(editor),
+    )
+    assert res.status_code == 200, res.text
+    assert res.json()["status"] == "archived"
+
+    # Archiviert -> wieder aktiv.
+    res = client.patch(
+        f"/api/documents/{doc_id}",
+        json={"status": "active"},
+        headers=bearer(editor),
+    )
+    assert res.status_code == 200, res.text
+    assert res.json()["status"] == "active"
+
+
+def test_patch_status_deleted_rejected_422(client: TestClient, db_session: Session):
+    pid, _owner, editor, *_ = _project_with_roles(client, db_session)
+    doc_id = _upload(client, pid, bearer(editor), TXT).json()["id"]
+
+    # 'deleted' laeuft nicht ueber metadata-patch, sondern ueber soft_delete/DELETE.
+    res = client.patch(
+        f"/api/documents/{doc_id}",
+        json={"status": "deleted"},
+        headers=bearer(editor),
+    )
+    assert res.status_code == 422, res.text
+
+
+def test_patch_status_invalid_value_rejected_422(client: TestClient, db_session: Session):
+    pid, _owner, editor, *_ = _project_with_roles(client, db_session)
+    doc_id = _upload(client, pid, bearer(editor), TXT).json()["id"]
+
+    res = client.patch(
+        f"/api/documents/{doc_id}",
+        json={"status": "bogus"},
+        headers=bearer(editor),
+    )
+    assert res.status_code == 422, res.text
+
+
 def test_upload_sets_default_retention(client: TestClient, db_session: Session):
     from datetime import date, timedelta
 

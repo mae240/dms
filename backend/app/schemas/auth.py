@@ -10,6 +10,12 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 from app.schemas.common import ORMModel, normalize_email
 
 
+def _normalize_login_email(v: str) -> str:
+    # Bewusst nur strip/lower, KEINE Formatvalidierung: ungueltige Eingaben
+    # sollen am Login als 401 enden (User nicht gefunden), nicht als 422.
+    return v.strip().lower()
+
+
 class RegisterFirstAdminIn(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=256)
@@ -20,12 +26,13 @@ class RegisterFirstAdminIn(BaseModel):
 
 
 class LoginIn(BaseModel):
-    # Bewusst nur normalisiert (kein EmailStr): ungueltige Eingaben sollen am
-    # Login einheitlich als 401 enden, nicht als 422 (keine Format-Auskunft).
+    # Bewusst nur normalisiert (kein EmailStr, kein validierender normalize_email):
+    # ungueltige Eingaben sollen am Login einheitlich als 401 enden, nicht als 422
+    # (keine Format-Auskunft). Daher nur strip/lower via _normalize_login_email.
     email: str
     password: str = Field(min_length=1, max_length=256)
 
-    _norm = field_validator("email")(normalize_email)
+    _norm = field_validator("email")(_normalize_login_email)
 
 
 class ChangePasswordIn(BaseModel):

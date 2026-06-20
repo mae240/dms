@@ -170,13 +170,17 @@ function RetentionRulesCard({ projectId }: { projectId: string }) {
 
   async function onAdd(e: React.FormEvent) {
     e.preventDefault();
-    await upsert.mutateAsync({
-      category: category.trim() || null,
-      max_days: maxDays === "" ? null : Number(maxDays),
-    });
-    setCategory("");
-    setMaxDays("");
-    setShowForm(false);
+    try {
+      await upsert.mutateAsync({
+        category: category.trim() || null,
+        max_days: maxDays === "" ? null : Number(maxDays),
+      });
+      setCategory("");
+      setMaxDays("");
+      setShowForm(false);
+    } catch {
+      // Fehler wird ueber upsert.error/ErrorBanner angezeigt.
+    }
   }
 
   async function onRemove(cat: string | null) {
@@ -294,8 +298,12 @@ function Members({
 
   async function onAdd(e: React.FormEvent) {
     e.preventDefault();
-    await add.mutateAsync({ email, role });
-    setEmail("");
+    try {
+      await add.mutateAsync({ email, role });
+      setEmail("");
+    } catch {
+      // Fehler wird ueber add.error/ErrorBanner angezeigt.
+    }
   }
 
   return (

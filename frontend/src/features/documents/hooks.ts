@@ -8,6 +8,7 @@ export function useDocument(documentId: string) {
   return useQuery({
     queryKey: ["document", documentId],
     queryFn: () => api.get<DocumentDetailOut>(`/documents/${documentId}`),
+    enabled: !!documentId, // nicht mit leerer ID feuern
   });
 }
 
@@ -15,6 +16,7 @@ export function useVersions(documentId: string) {
   return useQuery({
     queryKey: ["versions", documentId],
     queryFn: () => api.get<VersionOut[]>(`/documents/${documentId}/versions`),
+    enabled: !!documentId, // nicht mit leerer ID feuern
     refetchInterval: (query) => {
       const data = query.state.data as VersionOut[] | undefined;
       const pending = data?.some(
