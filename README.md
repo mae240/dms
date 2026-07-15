@@ -1,5 +1,8 @@
 # DMS — DSGVO-orientiertes Dokumentenmanagementsystem (MVP)
 
+![Python](https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white)
+![License: MIT](https://img.shields.io/badge/license-MIT-green)
+
 Ein schlankes, praktisches DMS für ein kleines IT-Startup: Verwaltung interner
 Verträge, Kundenverträge und mit Kunden geteilter Projekt-Dokumente. Zugriff ist
 strikt **projektgebunden** (Privacy by Default, Art. 25) — Kunden werden gezielt als
