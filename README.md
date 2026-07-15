@@ -1,5 +1,6 @@
 # DMS — DSGVO-orientiertes Dokumentenmanagementsystem (MVP)
 
+[![CI](https://github.com/mae240/dms/actions/workflows/ci.yml/badge.svg)](https://github.com/mae240/dms/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
