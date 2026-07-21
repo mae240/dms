@@ -33,10 +33,25 @@ services:
       - "--forwarded-allow-ips=*"
     # In Produktion keinen Host-Port veroeffentlichen; Zugriff nur ueber nginx.
     ports: !reset []
+    # Keine Source-Bind-Mounts in Produktion (Code kommt aus dem Image);
+    # nur die benoetigten benannten Volumes behalten.
+    volumes: !override
+      - storage_data:/data/storage
+      - export_data:/data/exports
 
   worker:
     environment:
       ENVIRONMENT: production
+    # Keine Source-Bind-Mounts in Produktion (Code kommt aus dem Image);
+    # storage_data bleibt mit dem Backend geteilt (KRITISCH).
+    volumes: !override
+      - storage_data:/data/storage
+      - export_data:/data/exports
+
+  # Dev-Frontend wird in Produktion nicht gestartet; falls doch versehentlich,
+  # soll es nicht mit Host-Code laufen.
+  frontend:
+    volumes: !reset []
 
   migrate:
     build:

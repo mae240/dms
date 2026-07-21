@@ -30,7 +30,7 @@ revision: ## Erzeugt eine Autogenerate-Migration: make revision m="nachricht"
 check-migrations: ## Prueft, ob Models und Migrationen synchron sind
 	$(COMPOSE) run --rm backend alembic check
 
-seed: ## Befuellt die DB mit Demo-Daten
+seed: ## Legt die Demo-User-Accounts an
 	$(COMPOSE) run --rm backend python -m app.seed
 
 test: ## Fuehrt die Backend-Tests aus
