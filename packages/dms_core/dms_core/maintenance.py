@@ -44,55 +44,64 @@ def _delete_blob(storage: StorageBackend, key: str | None) -> None:
 
 def purge_deleted_documents(session: Session, storage: StorageBackend) -> int:
     """Loescht endgueltig: status=deleted, NICHT legal_hold, purge_after erreicht,
-    retention_until abgelaufen/leer. Blobs zuerst, dann Zeilen, plus Audit."""
-    now = datetime.now(UTC)
-    candidates = session.exec(
-        select(Document)
-        .where(
-            Document.status == DocumentStatus.deleted,
-            Document.legal_hold.is_(False),
-            Document.purge_after.is_not(None),
-            Document.purge_after <= now,
-            or_(
-                Document.retention_until.is_(None),
-                Document.retention_until <= date.today(),
-            ),
-        )
-        .limit(PURGE_BATCH)
-    ).all()
+    retention_until abgelaufen/leer. Blobs zuerst, dann Zeilen, plus Audit.
 
-    # N+1 vermeiden: alle Versionen des Batches in EINEM Query laden und im
-    # Speicher nach document_id gruppieren.
-    doc_ids = [doc.id for doc in candidates]
-    versions_by_doc: dict[uuid.UUID, list[DocumentVersion]] = {doc.id: [] for doc in candidates}
-    if doc_ids:
+    Gebatcht (LIMIT-Schleife) wie die anderen Wartungsjobs, damit ein Rueckstau
+    > PURGE_BATCH in einem Lauf vollstaendig abgearbeitet wird. Geloeschte Zeilen
+    werden nicht erneut selektiert -> Schleife terminiert.
+    """
+    now = datetime.now(UTC)
+    purged = 0
+    while True:
+        candidates = session.exec(
+            select(Document)
+            .where(
+                Document.status == DocumentStatus.deleted,
+                Document.legal_hold.is_(False),
+                Document.purge_after.is_not(None),
+                Document.purge_after <= now,
+                or_(
+                    Document.retention_until.is_(None),
+                    Document.retention_until <= date.today(),
+                ),
+            )
+            .limit(PURGE_BATCH)
+        ).all()
+        if not candidates:
+            break
+
+        # N+1 vermeiden: alle Versionen des Batches in EINEM Query laden und im
+        # Speicher nach document_id gruppieren.
+        doc_ids = [doc.id for doc in candidates]
+        versions_by_doc: dict[uuid.UUID, list[DocumentVersion]] = {doc.id: [] for doc in candidates}
         for v in session.exec(
             select(DocumentVersion).where(DocumentVersion.document_id.in_(doc_ids))
         ).all():
             versions_by_doc[v.document_id].append(v)
 
-    purged = 0
-    for doc in candidates:
-        if doc.legal_hold:  # Defense in Depth (zusaetzlich zur WHERE-Clause)
-            continue
-        versions = versions_by_doc.get(doc.id, [])
-        for v in versions:
-            _delete_blob(storage, v.storage_key)
-            _delete_blob(storage, v.preview_storage_key)
+        for doc in candidates:
+            if doc.legal_hold:  # Defense in Depth (zusaetzlich zur WHERE-Clause)
+                continue
+            versions = versions_by_doc.get(doc.id, [])
+            for v in versions:
+                _delete_blob(storage, v.storage_key)
+                _delete_blob(storage, v.preview_storage_key)
 
-        write_audit_log(
-            session,
-            action=AuditAction.compliance_document_purged,
-            entity_type="document",
-            actor_user_id=None,
-            entity_id=doc.id,
-            project_id=doc.project_id,
-            metadata={"versions": len(versions), "title": doc.title},
-        )
-        session.delete(doc)  # CASCADE -> Versions-Zeilen
-        purged += 1
+            write_audit_log(
+                session,
+                action=AuditAction.compliance_document_purged,
+                entity_type="document",
+                actor_user_id=None,
+                entity_id=doc.id,
+                project_id=doc.project_id,
+                metadata={"versions": len(versions), "title": doc.title},
+            )
+            session.delete(doc)  # CASCADE -> Versions-Zeilen
+            purged += 1
 
-    session.flush()
+        session.flush()
+        if len(candidates) < PURGE_BATCH:
+            break
     return purged
 
 
