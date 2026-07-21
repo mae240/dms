@@ -71,26 +71,26 @@ schema drift.
 
 ```mermaid
 flowchart TB
-    subgraph client["Client"]
+    subgraph client["🖥️ Client"]
         SPA["React + Vite SPA<br/>JWT access in-memory<br/>refresh via httpOnly cookie"]
     end
 
-    subgraph edge["Edge (prod)"]
+    subgraph edge["🌐 Edge (prod)"]
         NGINX["nginx — single-origin<br/>serves built frontend + proxies /api"]
     end
 
-    subgraph app["Backend"]
+    subgraph app["⚙️ Backend"]
         API["FastAPI (REST/JSON)<br/>auth · projects · documents · admin<br/>security headers, rate limiting, Argon2id"]
     end
 
-    subgraph async["Async processing"]
+    subgraph async["🔄 Async processing"]
         REDIS[("Redis<br/>broker db1 · cache db0")]
         WORKER["Celery worker + beat<br/>queues: processing, maintenance"]
     end
 
     DB[("PostgreSQL<br/>SQLModel/Alembic<br/>audit_logs append-only trigger")]
 
-    subgraph storage["Storage (shared volume)"]
+    subgraph storage["🔐 Storage (shared volume)"]
         ENC["EncryptedStorageBackend<br/>AES-256-GCM (keyring)"]
         LOCAL["LocalFilesystemBackend<br/>MVP · Hetzner Storage Box in prod"]
         ENC --> LOCAL
@@ -104,6 +104,26 @@ flowchart TB
     WORKER <--> DB
     WORKER -->|"text extraction, purge, export"| ENC
     WORKER -.->|"beat: purge 03:00 · export cleanup · audit-IP redaction 04:15"| WORKER
+
+    classDef front fill:#bfdbfe,stroke:#2563eb,color:#0b1324;
+    classDef proxy fill:#fde68a,stroke:#d97706,color:#0b1324;
+    classDef api fill:#bbf7d0,stroke:#16a34a,color:#0b1324;
+    classDef work fill:#fecaca,stroke:#dc2626,color:#0b1324;
+    classDef data fill:#ddd6fe,stroke:#7c3aed,color:#0b1324;
+    classDef store fill:#99f6e4,stroke:#0d9488,color:#0b1324;
+
+    class SPA front;
+    class NGINX proxy;
+    class API api;
+    class REDIS,WORKER work;
+    class DB data;
+    class ENC,LOCAL store;
+
+    style client fill:#eff6ff,stroke:#93c5fd,color:#0b1324;
+    style edge fill:#fffbeb,stroke:#fcd34d,color:#0b1324;
+    style app fill:#f0fdf4,stroke:#86efac,color:#0b1324;
+    style async fill:#fef2f2,stroke:#fca5a5,color:#0b1324;
+    style storage fill:#f0fdfa,stroke:#5eead4,color:#0b1324;
 ```
 
 ```
