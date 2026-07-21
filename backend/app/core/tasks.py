@@ -7,7 +7,7 @@ aus, bleibt die Version im Status 'uploaded' und kann re-enqueued werden.
 
 from __future__ import annotations
 
-import contextlib
+import logging
 import uuid
 
 from dms_core.celery_app import (
@@ -16,13 +16,21 @@ from dms_core.celery_app import (
     celery_app,
 )
 
+logger = logging.getLogger(__name__)
+
+
+def _enqueue(task_name: str, entity_id: uuid.UUID) -> None:
+    # Broker-Ausfall darf den Request nicht killen (best-effort, re-enqueue moeglich) —
+    # aber geloggt, sonst bleibt ein haengender 'uploaded'-Status unsichtbar.
+    try:
+        celery_app.send_task(task_name, args=[str(entity_id)])
+    except Exception:
+        logger.exception("Enqueue von %s fehlgeschlagen (id=%s)", task_name, entity_id)
+
 
 def enqueue_process_version(version_id: uuid.UUID) -> None:
-    # Broker-Ausfall darf den Request nicht killen (best-effort, re-enqueue moeglich).
-    with contextlib.suppress(Exception):
-        celery_app.send_task(TASK_PROCESS_VERSION, args=[str(version_id)])
+    _enqueue(TASK_PROCESS_VERSION, version_id)
 
 
 def enqueue_export_user_data(export_id: uuid.UUID) -> None:
-    with contextlib.suppress(Exception):
-        celery_app.send_task(TASK_EXPORT_USER_DATA, args=[str(export_id)])
+    _enqueue(TASK_EXPORT_USER_DATA, export_id)
