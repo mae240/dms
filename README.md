@@ -294,15 +294,13 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml \
 
 ## Development Approach
 
-This project was built with an AI-assisted, agent-driven workflow: I drove the
-architecture and every design decision (access model, encryption scheme, audit
-strategy, GDPR mapping) and used coding agents to implement and iterate against
-that spec. Several commit messages reflect that loop directly (e.g. batches of
-review-driven fixes). Every change went through the same gate as any other
-contribution — CI (lint, typed tests against a real Postgres, dependency and
-CodeQL scans) plus my own review — so the workflow is a force multiplier on top
-of the engineering, not a substitute for it. Happy to walk through any part of
-the design and the trade-offs behind it.
+I built this with an AI-assisted, agent-driven workflow. I owned the architecture
+and every design decision — the project-scoped access model, the envelope-encryption
+scheme, the append-only audit strategy, the GDPR mapping — and used coding agents to
+implement and iterate against that spec under my review. Every change passed the same
+gate as any other contribution: CI (lint, typed tests against a real Postgres,
+dependency and CodeQL scans) and my own review. The interesting engineering is in the
+design and the trade-offs — happy to walk through any of it.
 
 ## License
 
