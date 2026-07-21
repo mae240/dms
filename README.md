@@ -15,6 +15,21 @@ be designed end to end: a project-scoped access model, an append-only audit trai
 retention/purge automation, and application-level encryption at rest — wired
 together across a small, honest FastAPI + Celery + PostgreSQL stack.
 
+![Dashboard](docs/screenshots/dashboard.png)
+
+<details>
+<summary>More screenshots: document detail & audit log</summary>
+
+**Document detail** — versioning, retention and legal hold:
+
+![Document detail](docs/screenshots/document.png)
+
+**Audit log** — append-only, filterable, IPs redacted after expiry:
+
+![Audit log](docs/screenshots/audit.png)
+
+</details>
+
 ## Table of Contents
 
 - [Highlights](#highlights)
