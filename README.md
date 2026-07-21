@@ -15,8 +15,6 @@ be designed end to end: a project-scoped access model, an append-only audit trai
 retention/purge automation, and application-level encryption at rest — wired
 together across a small, honest FastAPI + Celery + PostgreSQL stack.
 
-<!-- TODO: screenshot — dashboard / document detail view goes here -->
-
 ## Table of Contents
 
 - [Highlights](#highlights)
