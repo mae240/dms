@@ -11,6 +11,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # ── Stage 1: fast quality gate ───────────────────────────────
   lint:
     name: Ruff (lint + format)
     runs-on: ubuntu-latest
@@ -25,8 +26,10 @@ jobs:
           version: "0.8.4"
           args: format --check .
 
+  # ── Stage 2: verification (runs once lint passes) ────────────
   test:
     name: Backend + Worker (pytest, migrations)
+    needs: lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -41,6 +44,7 @@ jobs:
 
   frontend:
     name: Frontend (typecheck, build, tests)
+    needs: lint
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -62,6 +66,7 @@ jobs:
 
   audit:
     name: Dependency audit (pip-audit)
+    needs: lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -75,3 +80,11 @@ jobs:
           uv pip install --system -e packages/dms_core -e "backend[dev]"
       - name: Audit installed dependencies
         run: pip-audit
+
+  # ── Stage 3: aggregate gate (single required status check) ───
+  ci:
+    name: CI passed
+    needs: [test, frontend, audit]
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Lint, tests, migrations, frontend and dependency audit all passed."
