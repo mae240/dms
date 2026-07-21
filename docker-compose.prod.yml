@@ -13,6 +13,10 @@ name: dms
 
 services:
   backend:
+    # Prod-Image ohne [dev]-Extras (kein pytest im Deployment)
+    build:
+      args:
+        INSTALL_DEV: "false"
     environment:
       ENVIRONMENT: production
       RUN_MIGRATIONS: "false"
@@ -40,6 +44,10 @@ services:
       - export_data:/data/exports
 
   worker:
+    # Prod-Image ohne [dev]-Extras (kein pytest im Deployment)
+    build:
+      args:
+        INSTALL_DEV: "false"
     environment:
       ENVIRONMENT: production
     # Keine Source-Bind-Mounts in Produktion (Code kommt aus dem Image);

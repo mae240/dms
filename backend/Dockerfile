@@ -20,7 +20,14 @@ COPY backend /app/backend
 COPY alembic /app/alembic
 COPY alembic.ini /app/alembic.ini
 
-RUN uv pip install --system -e /app/packages/dms_core -e "/app/backend[dev]"
+# Dev/CI-Images brauchen die [dev]-Extras (pytest laeuft im Container);
+# Prod-Images (docker-compose.prod.yml) bleiben ohne Test-Tooling.
+ARG INSTALL_DEV=false
+RUN if [ "$INSTALL_DEV" = "true" ]; then \
+        uv pip install --system -e /app/packages/dms_core -e "/app/backend[dev]"; \
+    else \
+        uv pip install --system -e /app/packages/dms_core -e /app/backend; \
+    fi
 
 # Non-root + Datenverzeichnisse (geteilte UID mit dem Worker)
 RUN useradd -m -u 10001 appuser \

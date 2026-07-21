@@ -16,7 +16,14 @@ WORKDIR /app
 COPY packages/dms_core /app/packages/dms_core
 COPY worker /app/worker
 
-RUN uv pip install --system -e /app/packages/dms_core -e "/app/worker[dev]"
+# Dev/CI-Images brauchen die [dev]-Extras (pytest laeuft im Container);
+# Prod-Images (docker-compose.prod.yml) bleiben ohne Test-Tooling.
+ARG INSTALL_DEV=false
+RUN if [ "$INSTALL_DEV" = "true" ]; then \
+        uv pip install --system -e /app/packages/dms_core -e "/app/worker[dev]"; \
+    else \
+        uv pip install --system -e /app/packages/dms_core -e /app/worker; \
+    fi
 
 # Gleiche UID wie das Backend, damit das geteilte Storage-Volume lesbar ist (KRITISCH)
 RUN useradd -m -u 10001 appuser \
