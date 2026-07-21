@@ -28,14 +28,6 @@ known-first-party = ["dms_core", "app", "worker"]
 # Alembic-Migrationen sind autogeneriert; lange sa.Column(...)-Zeilen sind Konvention.
 "alembic/versions/*" = ["E501"]
 
-[tool.mypy]
-python_version = "3.12"
-plugins = ["pydantic.mypy"]
-ignore_missing_imports = true
-warn_unused_ignores = true
-no_implicit_optional = true
-files = ["packages/dms_core/dms_core", "backend/app"]
-
 [tool.pytest.ini_options]
 testpaths = ["backend/tests"]
 addopts = "-q"
