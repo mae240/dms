@@ -103,7 +103,7 @@ flowchart TB
     REDIS --> WORKER
     WORKER <--> DB
     WORKER -->|"text extraction, purge, export"| ENC
-    WORKER -.->|"beat: purge 03:00 · export cleanup · audit-IP redaction 04:15"| WORKER
+    WORKER -.->|"beat: auto-expire 02:30 · purge 03:00 · audit-IP redaction 04:15 · hourly export cleanup"| WORKER
 
     classDef front fill:#bfdbfe,stroke:#2563eb,color:#0b1324;
     classDef proxy fill:#fde68a,stroke:#d97706,color:#0b1324;
