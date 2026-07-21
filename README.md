@@ -42,6 +42,7 @@ together across a small, honest FastAPI + Celery + PostgreSQL stack.
 - [Migrations](#migrations)
 - [Tests](#tests)
 - [Production](#production)
+- [Development Approach](#development-approach)
 
 ## Highlights
 
@@ -290,6 +291,18 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml \
   TLS, and a valid `STORAGE_ENCRYPTION_KEYS` keyring — otherwise the app refuses
   to start.
 - Do **not** start the dev `frontend` service in production.
+
+## Development Approach
+
+This project was built with an AI-assisted, agent-driven workflow: I drove the
+architecture and every design decision (access model, encryption scheme, audit
+strategy, GDPR mapping) and used coding agents to implement and iterate against
+that spec. Several commit messages reflect that loop directly (e.g. batches of
+review-driven fixes). Every change went through the same gate as any other
+contribution — CI (lint, typed tests against a real Postgres, dependency and
+CodeQL scans) plus my own review — so the workflow is a force multiplier on top
+of the engineering, not a substitute for it. Happy to walk through any part of
+the design and the trade-offs behind it.
 
 ## License
 
