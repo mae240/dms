@@ -52,12 +52,24 @@ async function rawRequest(path: string, init: RequestInit): Promise<Response> {
   return fetch(`${BASE}${path}`, { ...init, headers });
 }
 
-async function tryRefresh(): Promise<boolean> {
-  const res = await fetch(`${BASE}/auth/refresh`, { method: "POST" });
-  if (!res.ok) return false;
-  const data = (await res.json()) as { access_token: string };
-  accessToken = data.access_token;
-  return true;
+// Single-Flight: parallele 401er teilen sich EINEN Refresh. Ohne das wuerden
+// gleichzeitige Requests mehrere /auth/refresh ausloesen; bei Token-Rotation
+// invalidiert der erste den Cookie des zweiten -> unnoetiger Logout.
+let refreshInFlight: Promise<boolean> | null = null;
+
+function tryRefresh(): Promise<boolean> {
+  refreshInFlight ??= (async () => {
+    try {
+      const res = await fetch(`${BASE}/auth/refresh`, { method: "POST" });
+      if (!res.ok) return false;
+      const data = (await res.json()) as { access_token: string };
+      accessToken = data.access_token;
+      return true;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+  return refreshInFlight;
 }
 
 async function request<T>(path: string, init: RequestInit = {}, retry = true): Promise<T> {

@@ -1,3 +1,5 @@
+import { getAccessToken, refreshAccessToken } from "./apiClient";
+
 export function formatDate(iso: string | null | undefined): string {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -25,10 +27,18 @@ function filenameFromDisposition(disposition: string): string {
   return plain ? plain[1].trim() : "download";
 }
 
-export async function downloadAuthed(path: string, accessToken: string | null): Promise<void> {
-  const res = await fetch(`/api${path}`, {
-    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
-  });
+export async function downloadAuthed(path: string): Promise<void> {
+  const authedFetch = () => {
+    const token = getAccessToken();
+    return fetch(`/api${path}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+  };
+  let res = await authedFetch();
+  // Abgelaufenes Access-Token einmal erneuern (gleiches Muster wie apiClient.request).
+  if (res.status === 401 && (await refreshAccessToken())) {
+    res = await authedFetch();
+  }
   if (!res.ok) throw new Error("Download fehlgeschlagen");
   const blob = await res.blob();
   const filename = filenameFromDisposition(res.headers.get("content-disposition") ?? "");
